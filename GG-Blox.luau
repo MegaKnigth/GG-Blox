@@ -30,10 +30,10 @@ local SEA = ({ [2753915549] = 1, [4442272183] = 2, [7449423635] = 3 })[game.Plac
 --  CARREGAR A UI  (repo primeiro, local como fallback)
 --=====================================================================
 local UI_URLS = {
-	"https://cdn.jsdelivr.net/gh/MegaKnigth/GG-Blox@main/GG-Ui.lua",
-	"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.lua",
+	"https://cdn.jsdelivr.net/gh/MegaKnigth/GG-Blox@main/GG-Ui.luau",
+	"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau",
 }
-local UI_LOCAL = { "GG-Ui.lua", "GG-Ui.luau" }
+local UI_LOCAL = { "GG-Ui.luau", "GG-Ui.lua" }
 local function validSource(src)
 	return type(src) == "string" and #src > 2000 and string.find(src, "MakeWindow", 1, true) ~= nil
 end
