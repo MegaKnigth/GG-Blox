@@ -1928,7 +1928,4 @@ Window:Notify({
 	Title = "GG Blox v2.8",
 	Content = "Carregado · Sea " .. SEA .. " · RightShift minimiza",
 	Duration = 6,
-})tle = "GG Blox v2.7",
-	Content = "Carregado · Sea " .. SEA .. " · RightShift minimiza",
-	Duration = 6,
 })
