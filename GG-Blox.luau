@@ -1,7 +1,8 @@
 --=====================================================================
---  GG BLOX v2.8 — BLOX FRUITS
+--  GG BLOX v2.9 — BLOX FRUITS
 --  UI: Gold UI (redz v5) · baixada do repositorio, local como fallback
 --  RightShift minimiza. Teste em servidor privado primeiro.
+--  ATUALIZAÇÃO: Motor de ataque trocado para o método Hardcore (Hook + Rig)
 --=====================================================================
 
 local cloneref = cloneref or function(o) return o end
@@ -246,13 +247,23 @@ local function teleport(cf, speed)
 end
 
 --=====================================================================
---  COMBATE
+--  COMBATE (MÉTODO 2: HOOK + RIGCONTROLLER)
 --=====================================================================
+local CombatFramework, CombatFrameworkR, RigController, RigControllerR
 local Net
 local warnedNet = false
 local warnedWeapon = false
 
+-- Tenta carregar tudo, mas não trava se falhar
 task.spawn(function()
+	pcall(function()
+		CombatFramework = require(LocalPlayer.PlayerScripts:WaitForChild("CombatFramework", 10))
+		CombatFrameworkR = getupvalues(CombatFramework)[2]
+	end)
+	pcall(function()
+		RigController = require(LocalPlayer.PlayerScripts.CombatFramework.RigController)
+		RigControllerR = getupvalues(RigController)[2]
+	end)
 	for _ = 1, 30 do
 		local modules = ReplicatedStorage:FindFirstChild("Modules")
 		local netModule = modules and modules:FindFirstChild("Net")
@@ -265,8 +276,84 @@ task.spawn(function()
 		end
 		task.wait(1)
 	end
-	warnOnce("net", "Erro", "Modulo Net nao carregou. Ataque/Farm sem dano.", 60)
+	warnOnce("net", "Erro", "Modulo Net nao carregou. Fallback para RigController.", 60)
 end)
+
+-- Função para pegar inimigos num raio (do SourceSkibidi)
+local function getAllBladeHits(range)
+	local hits = {}
+	local char, hrp = getChar()
+	if not hrp then return hits end
+	local enemies = Workspace:FindFirstChild("Enemies")
+	if not enemies then return hits end
+	for _, mob in ipairs(enemies:GetChildren()) do
+		local mhrp = mob:FindFirstChild("HumanoidRootPart")
+		local hum = mob:FindFirstChildOfClass("Humanoid")
+		if mhrp and hum and hum.Health > 0 and (mhrp.Position - hrp.Position).Magnitude <= (range or 60) then
+			table.insert(hits, mhrp)
+		end
+	end
+	return hits
+end
+
+-- Função principal de ataque do SourceSkibidi (Hook + Rig)
+local function attackHardcore(range)
+	local ac = CombatFrameworkR and CombatFrameworkR.activeController
+	if not ac or not ac.equipped then
+		-- Fallback para o método antigo se o hook falhar
+		if Net and Net["RE/RegisterAttack"] then
+			local char, hrp = getChar()
+			if char and hrp then
+				local tool = char:FindFirstChildOfClass("Tool")
+				if tool then
+					local targets, head = {}, nil
+					for _, v in ipairs(getAllBladeHits(range or 60)) do
+						local mob = v.Parent
+						table.insert(targets, {mob, v})
+						if not head then head = v end
+					end
+					if head then
+						pcall(function()
+							Net["RE/RegisterAttack"]:FireServer(0)
+							Net["RE/RegisterHit"]:FireServer(head, targets)
+						end)
+					end
+				end
+			end
+		end
+		return
+	end
+
+	local bladehit = getAllBladeHits(range or 60)
+	if #bladehit > 0 then
+		local acAttack8 = debug.getupvalue(ac.attack, 5)
+		local acAttack9 = debug.getupvalue(ac.attack, 6)
+		local acAttack7 = debug.getupvalue(ac.attack, 4)
+		local acAttack10 = debug.getupvalue(ac.attack, 7)
+		local numberAc12 = (acAttack8 * 798405 + acAttack7 * 727595) % acAttack9
+		local numberAc13 = acAttack7 * 798405
+		(function()
+			numberAc12 = (numberAc12 * acAttack9 + numberAc13) % 1099511627776
+			acAttack8 = math.floor(numberAc12 / acAttack9)
+			acAttack7 = numberAc12 - acAttack8 * acAttack9
+		end)()
+		acAttack10 = acAttack10 + 1
+		debug.setupvalue(ac.attack, 5, acAttack8)
+		debug.setupvalue(ac.attack, 6, acAttack9)
+		debug.setupvalue(ac.attack, 4, acAttack7)
+		debug.setupvalue(ac.attack, 7, acAttack10)
+		for k, v in pairs(ac.animator.anims.basic) do
+			v:Play(0.01,0.01,0.01)
+		end
+		if LocalPlayer.Character:FindFirstChildOfClass("Tool") and ac.blades and ac.blades[1] then
+			pcall(function()
+				ReplicatedStorage.RigControllerEvent:FireServer("weaponChange", tostring(ac.blades[1].Name))
+				Remotes.Validator:FireServer(math.floor(numberAc12 / 1099511627776 * 16777215), acAttack10)
+				ReplicatedStorage.RigControllerEvent:FireServer("hit", bladehit, 2, "")
+			end)
+		end
+	end
+end
 
 local function equipType(kind)
 	local char = getChar()
@@ -290,33 +377,6 @@ local function equipType(kind)
 	return nil
 end
 
-local function collectTargets(range)
-	local _, hrp = getChar()
-	if not hrp then
-		return nil, nil
-	end
-	local enemies = Workspace:FindFirstChild("Enemies")
-	if not enemies then
-		return nil, nil
-	end
-	local targets, head = {}, nil
-	for _, mob in ipairs(enemies:GetChildren()) do
-		local mhrp = mob:FindFirstChild("HumanoidRootPart")
-		local hum = mob:FindFirstChildOfClass("Humanoid")
-		if mhrp and hum and hum.Health > 0 and (mhrp.Position - hrp.Position).Magnitude <= range then
-			local h = mob:FindFirstChild("Head") or mhrp
-			table.insert(targets, { mob, h })
-			if not head then
-				head = h
-			end
-			if #targets >= MAX_TARGETS then
-				break
-			end
-		end
-	end
-	return targets, head
-end
-
 local function attack(range)
 	local char, hrp = getChar()
 	if not char or not hrp then
@@ -330,35 +390,7 @@ local function attack(range)
 		end
 		return
 	end
-
-	local targets, head = collectTargets(range or 62)
-	if not head then
-		return
-	end
-
-	if Net and Net["RE/RegisterAttack"] and Net["RE/RegisterHit"] then
-		pcall(function()
-			Net["RE/RegisterAttack"]:FireServer(0)
-			Net["RE/RegisterHit"]:FireServer(head, targets)
-		end)
-		return
-	end
-
-	local rig = ReplicatedStorage:FindFirstChild("RigControllerEvent")
-	local val = Remotes and Remotes:FindFirstChild("Validator")
-	if rig and val then
-		pcall(function()
-			rig:FireServer("weaponChange", tool.Name)
-			val:FireServer(math.random(1, 16777215), math.random(1, 99))
-			rig:FireServer("hit", targets, 2, "")
-		end)
-		return
-	end
-
-	if not warnedNet then
-		warnedNet = true
-		warn("[GG] Net nil e sem fallback no attack(). Dano nao vai aplicar.")
-	end
+	attackHardcore(range)
 end
 
 local function bringMobs(range)
@@ -713,7 +745,7 @@ end
 --=====================================================================
 Window = Library:MakeWindow({
 	Title = "GG Blox",
-	SubTitle = "blox fruits · v2.8",
+	SubTitle = "blox fruits · v2.9",
 	ScriptFolder = "VeniceHub",
 })
 
@@ -1926,7 +1958,7 @@ task.spawn(function()
 end)
 
 Window:Notify({
-	Title = "GG Blox v2.8",
-	Content = "Carregado · Sea " .. SEA .. " · RightShift minimiza",
+	Title = "GG Blox v2.9",
+	Content = "Carregado · Sea " .. SEA .. " · Motor de ataque Hardcore ativado",
 	Duration = 6,
 })
