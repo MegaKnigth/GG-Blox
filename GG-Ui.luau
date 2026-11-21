@@ -30,17 +30,15 @@ local function baixar(arquivo)
     return getcustomasset(arquivo)
 end
 
--- Aplica uma imagem: fundo, tom, cor do texto e quadrado minimizado
+-- Aplica uma imagem: fundo, tom (5%), cor do texto e quadrado minimizado
 local function aplicar(ctx, info)
     ctx.fundo.Image = baixar(info.arquivo)
     ctx.tom.BackgroundColor3 = info.tom
-    ctx.tom.BackgroundTransparency = info.tomT
+    ctx.tom.BackgroundTransparency = 0.95
     ctx.texto = info.texto
 
     for _, obj in ipairs(ctx.gui:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-            obj.TextStrokeTransparency = 0.2
-            obj.TextStrokeColor3 = Color3.new(0,0,0)
             obj.TextColor3 = info.texto
         end
     end
@@ -57,6 +55,9 @@ redzlib.MakeWindow = function(self, config)
     local janela = criarJanelaOriginal(self, config)
     local main = janela:GetElements().MainFrame
     local gui = main.Parent
+
+    -- Remove o fundo escuro da janela para a imagem aparecer
+    main.BackgroundTransparency = 1
 
     -- Compatibilidade: o script usa MakeNotify, a Gold usa Notify
     redzlib.MakeNotify = function(_, cfg)
@@ -82,12 +83,12 @@ redzlib.MakeWindow = function(self, config)
     tom.Name = "Tom"
     tom.Size = UDim2.fromScale(1,1)
     tom.BackgroundColor3 = Color3.new(0,0,0)
-    tom.BackgroundTransparency = 0.5
+    tom.BackgroundTransparency = 0.95
     tom.ZIndex = 0
     tom.Parent = fundo
     Instance.new("UICorner", tom).CornerRadius = UDim.new(0,8)
 
-    -- Quadrado minimizado 1:1
+    -- Quadrado minimizado 1:1 com cantos levemente arredondados
     local minimizador = janela:NewMinimizer(Enum.KeyCode.RightControl)
     local botao = minimizador:CreateMobileMinimizer({
         Size = UDim2.fromOffset(40,40),
@@ -95,6 +96,7 @@ redzlib.MakeWindow = function(self, config)
         ScaleType = Enum.ScaleType.Crop
     })
     Instance.new("UIAspectRatioConstraint", botao).AspectRatio = 1
+    Instance.new("UICorner", botao).CornerRadius = UDim.new(0,8)
 
     local ctx = {
         fundo = fundo,
@@ -104,12 +106,10 @@ redzlib.MakeWindow = function(self, config)
         texto = Color3.new(1,1,1)
     }
 
-    -- Textos criados depois (outras abas, dropdowns) também recebem o estilo
+    -- Textos criados depois (outras abas, dropdowns) também recebem a cor
     gui.DescendantAdded:Connect(function(obj)
         if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and ctx.texto then
             task.defer(function()
-                obj.TextStrokeTransparency = 0.2
-                obj.TextStrokeColor3 = Color3.new(0,0,0)
                 obj.TextColor3 = ctx.texto
             end)
         end
