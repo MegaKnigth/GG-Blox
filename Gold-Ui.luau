@@ -3999,8 +3999,6 @@ end)
 return as
 end
 
-return s
-return as
-end
+
 
 return s
