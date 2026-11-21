@@ -1,5 +1,5 @@
 --=====================================================================
---  GG BLOX v2.7 — BLOX FRUITS
+--  GG BLOX v2.8 — BLOX FRUITS
 --  UI: Gold UI (redz v5) · baixada do repositorio, local como fallback
 --  RightShift minimiza. Teste em servidor privado primeiro.
 --=====================================================================
@@ -30,7 +30,6 @@ local SEA = ({ [2753915549] = 1, [4442272183] = 2, [7449423635] = 3 })[game.Plac
 --=====================================================================
 local UI_URLS = {
 	"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/Gold-Ui.luau",
-	"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/main/Gold-Ui.luau",
 }
 local UI_LOCAL = { "GoldUI.luau", "Gold-Ui.luau", "GoldUI.lua", "Gold ui.luau", "Gold ui.luau.txt" }
 
@@ -56,7 +55,7 @@ end
 local function tryDownload()
 	for _, url in ipairs(UI_URLS) do
 		local ok, src = pcall(function()
-			return game:HttpGet(url .. "?t=" .. tostring(os.time()))
+			return game:HttpGet(url)
 		end)
 		if ok then
 			local lib = trySource(src, "GoldUI")
@@ -713,7 +712,7 @@ end
 --=====================================================================
 Window = Library:MakeWindow({
 	Title = "GG Blox",
-	SubTitle = "blox fruits · v2.7",
+	SubTitle = "blox fruits · v2.8",
 	ScriptFolder = "VeniceHub",
 })
 
@@ -1926,7 +1925,10 @@ task.spawn(function()
 end)
 
 Window:Notify({
-	Title = "GG Blox v2.7",
+	Title = "GG Blox v2.8",
+	Content = "Carregado · Sea " .. SEA .. " · RightShift minimiza",
+	Duration = 6,
+})tle = "GG Blox v2.7",
 	Content = "Carregado · Sea " .. SEA .. " · RightShift minimiza",
 	Duration = 6,
 })
