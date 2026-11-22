@@ -604,9 +604,10 @@ function GGUI:MakeWindow(cfg)
 			Text = cfg.LinkLabel or "Discord",
 			Font = Enum.Font.GothamMedium,
 			TextSize = 11,
-		}, win.TopBar), "BackgroundColor3", "Primary")
+		}, win.TopBar), "BackgroundColor3", "Element")
 		reg(lk, "TextColor3", "Text")
 		corner(lk, 5)
+		reg(new("UIStroke", { Thickness = 1 }, lk), "Color", "Primary")
 		lk.Activated:Connect(function()
 			if setclipboard then
 				setclipboard(cfg.Link)
@@ -623,17 +624,20 @@ function GGUI:MakeWindow(cfg)
 		AutoButtonColor = false,
 	}, win.TopBar)
 	reg(closeBtn, "ImageColor3", "Icons")
-	local minBtn = new("ImageButton", {
-		Size = UDim2.fromOffset(16, 16),
+	local minBtn = new("TextButton", {
+		Size = UDim2.fromOffset(20, 20),
 		Position = UDim2.new(1, -36, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
-		Image = ICONS.Minimize,
+		Text = "–",
+		Font = Enum.Font.GothamBold,
+		TextSize = 16,
 		AutoButtonColor = false,
 	}, win.TopBar)
-	reg(minBtn, "ImageColor3", "Icons")
+	reg(minBtn, "TextColor3", "Icons")
+	win.MinBtn = minBtn
 	minBtn.Activated:Connect(function()
-		win:Minimize()
+		win:MinimizeButton()
 	end)
 	closeBtn.Activated:Connect(function()
 		win:Destroy()
@@ -709,7 +713,7 @@ function GGUI:MakeWindow(cfg)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		AutoButtonColor = false,
 		ScaleType = Enum.ScaleType.Crop,
-		Visible = false,
+		Visible = true,
 		ZIndex = 30,
 	}, win.Screen), "BackgroundColor3", "Element")
 	corner(win.Square, 8)
@@ -744,7 +748,7 @@ end
 
 function Window:_syncSquare()
 	if self.Square then
-		self.Square.Visible = (self.Minimized or self.SquareAlways) and true or false
+		self.Square.Visible = true
 	end
 end
 
@@ -759,12 +763,24 @@ end
 
 -- Versão da Gold: encolhe a janela até a barra superior
 function Window:MinimizeButton()
-	if self.Shrunk then
-		self.Shrunk = false
-		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H) }, TIME.Minimize)
-	else
-		self.Shrunk = true
+	local collapsed = not self.Shrunk
+	self.Shrunk = collapsed
+	local inner = { self.Sidebar, self.Content, self.Divider, self.Grip }
+	if collapsed then
+		for _, o in ipairs(inner) do
+			o.Visible = false
+		end
 		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, TOPBAR_H) }, TIME.Minimize)
+	else
+		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H) }, TIME.Minimize)
+		task.delay(TIME.Minimize, function()
+			for _, o in ipairs(inner) do
+				o.Visible = true
+			end
+		end)
+	end
+	if self.MinBtn then
+		self.MinBtn.Text = collapsed and "+" or "–"
 	end
 end
 
@@ -1325,14 +1341,32 @@ function Window:ApplyBackground(name)
 	if not info then
 		return false
 	end
+	local bases = {
+		self.Repo,
+		"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/main/assets/",
+		"https://raw.githubusercontent.com/MegaKnigth/GG-Blox/main/ativos/",
+	}
 	local ok, asset = pcall(function()
 		if not isfile(info.arquivo) then
-			writefile(info.arquivo, game:HttpGet(self.Repo .. info.arquivo))
+			local lastErr = "sem resposta"
+			for _, base in ipairs(bases) do
+				local good, data = pcall(game.HttpGet, game, base .. info.arquivo)
+				if good and type(data) == "string" and #data > 100 then
+					writefile(info.arquivo, data)
+					lastErr = nil
+					break
+				end
+				lastErr = good and "arquivo vazio" or tostring(data)
+			end
+			if lastErr then
+				error(info.arquivo .. ": " .. lastErr)
+			end
 		end
 		return getcustomasset(info.arquivo)
 	end)
 	if not ok then
 		warn("[GGUI] fundo '" .. tostring(name) .. "' falhou: " .. tostring(asset))
+		self:Notify({ Title = "Fundo não carregou", Content = tostring(name), Duration = 4 })
 		return false
 	end
 	self.BgImage.Image = asset
