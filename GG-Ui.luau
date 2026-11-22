@@ -1,104 +1,186 @@
 
+
 local TweenService = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 
-local GGUI = {}
-GGUI.Windows = {}
-GGUI.Paints = {}
-GGUI.CurrentTheme = "Darker"
-GGUI.ThemeOrder = { "Darker", "Rosa Suave", "Azul Suave", "Vermelho Carmesim" }
-
-local Window = {}
+local GGUI = { Windows = {}, Paints = {}, Version = "3.0.0" }
+local Window, Tab, Comp, Minimizer = {}, {}, {}, {}
 Window.__index = Window
-local Tab = {}
 Tab.__index = Tab
+Comp.__index = Comp
+Minimizer.__index = Minimizer
 
 -- ===== CONFIGURAÇÕES =====
 local REPO = "https://raw.githubusercontent.com/MegaKnigth/GG-Blox/main/assets/"
+local TOPBAR_H = 28
+local DEFAULT_W, DEFAULT_H = 620, 420
+
+local LIMITS = {
+	W = { 430, 1000 },
+	H = { 200, 500 },
+	TabsW = { 135, 210 },
+	Scale = { 0.6, 1.6 },
+}
+
+local TIME = {
+	Hover = 0.2, Fast = 0.15, Normal = 0.25, Tab = 0.45, Drop = 0.2,
+	Slider = 0.3, Minimize = 0.25, NotifyIn = 0.35, NotifyOut = 0.8, Dialog = 0.3,
+}
+
+local ICONS = {
+	Close = "rbxassetid://10747384394",
+	Minimize = "rbxassetid://10734896206",
+	Open = "rbxassetid://10709791523",
+}
 
 local DEFAULT_BACKGROUNDS = {
-	{ nome = "Black", arquivo = "black.jpg", tom = Color3.new(0,0,0) },
-	{ nome = "Miku Code", arquivo = "mikucode.jpg", tom = Color3.fromRGB(20,10,40) },
-	{ nome = "Branco", arquivo = "branco.jpg", tom = Color3.fromRGB(10,30,70) },
-	{ nome = "Hollow", arquivo = "hollow.jpg", tom = Color3.fromRGB(10,30,70) },
-	{ nome = "Miku Mine", arquivo = "mikumine.jpg", tom = Color3.fromRGB(40,20,60) },
-	{ nome = "Re:Zero", arquivo = "rezero.jpg", tom = Color3.new(1,1,1) },
-	{ nome = "Dragon Ball", arquivo = "dragonball.jpg", tom = Color3.new(0,0,0) },
+	{ nome = "Black", arquivo = "black.jpg" },
+	{ nome = "Miku Code", arquivo = "mikucode.jpg" },
+	{ nome = "Branco", arquivo = "branco.jpg" },
+	{ nome = "Hollow", arquivo = "hollow.jpg" },
+	{ nome = "Miku Mine", arquivo = "mikumine.jpg" },
+	{ nome = "Re:Zero", arquivo = "rezero.jpg" },
+	{ nome = "Dragon Ball", arquivo = "dragonball.jpg" },
 }
 
-GGUI.Themes = {
-	["Darker"] = {
-		Background = Color3.fromRGB(25,25,25),
-		Element = Color3.fromRGB(36,36,38),
-		Stroke = Color3.fromRGB(55,55,58),
-		Primary = Color3.fromRGB(88,101,242),
-		Text = Color3.fromRGB(255,255,255),
-		TextDark = Color3.fromRGB(200,200,200),
-	},
-	["Rosa Suave"] = {
-		Background = Color3.fromRGB(40,28,36),
-		Element = Color3.fromRGB(56,39,50),
-		Stroke = Color3.fromRGB(96,66,84),
-		Primary = Color3.fromRGB(255,150,190),
-		Text = Color3.fromRGB(255,246,250),
-		TextDark = Color3.fromRGB(230,200,216),
-	},
-	["Azul Suave"] = {
-		Background = Color3.fromRGB(24,31,44),
-		Element = Color3.fromRGB(35,44,62),
-		Stroke = Color3.fromRGB(66,84,112),
-		Primary = Color3.fromRGB(120,180,255),
-		Text = Color3.fromRGB(240,248,255),
-		TextDark = Color3.fromRGB(190,210,235),
-	},
-	["Vermelho Carmesim"] = {
-		Background = Color3.fromRGB(30,18,20),
-		Element = Color3.fromRGB(46,26,30),
-		Stroke = Color3.fromRGB(96,30,42),
-		Primary = Color3.fromRGB(190,20,50),
-		Text = Color3.fromRGB(255,240,242),
-		TextDark = Color3.fromRGB(222,190,196),
-	},
+-- As 12 cores de tema, camada e texto
+local PALETTE = {
+	{ name = "Rosa Suave", color = Color3.fromRGB(255,150,190) },
+	{ name = "Azul Suave", color = Color3.fromRGB(120,180,255) },
+	{ name = "Vermelho Carmesim", color = Color3.fromRGB(190,20,50) },
+	{ name = "Roxo", color = Color3.fromRGB(150,90,230) },
+	{ name = "Verde Menta", color = Color3.fromRGB(110,220,170) },
+	{ name = "Amarelo Suave", color = Color3.fromRGB(255,225,130) },
+	{ name = "Laranja", color = Color3.fromRGB(255,140,70) },
+	{ name = "Ciano", color = Color3.fromRGB(80,220,235) },
+	{ name = "Branco", color = Color3.fromRGB(255,255,255) },
+	{ name = "Cinza", color = Color3.fromRGB(140,140,150) },
+	{ name = "Preto", color = Color3.fromRGB(0,0,0) },
+	{ name = "Dourado", color = Color3.fromRGB(212,175,55) },
 }
 
-local ICON_CLOSE = "rbxassetid://10747384394"
-local ICON_MIN = "rbxassetid://10734896206"
-local ICON_OPEN = "rbxassetid://10709791523"
-local ICON_CLOSED = "rbxassetid://10709790948"
+-- Tema padrão "Darker", igual ao da Gold
+local DARKER = {
+	Background = Color3.fromRGB(25,25,25),
+	Element = Color3.fromRGB(36,36,38),
+	ElementHold = Color3.fromRGB(44,44,48),
+	Stroke = Color3.fromRGB(55,55,58),
+	Primary = Color3.fromRGB(88,101,242),
+	Dropdown = Color3.fromRGB(30,30,30),
+}
 
--- ===== TEMA =====
-local function T(role)
-	local t = GGUI.Themes[GGUI.CurrentTheme] or GGUI.Themes.Darker
-	return t[role] or t.Text
+GGUI.State = {
+	Base = "Darker",
+	Tone = 20,
+	TextName = "Branco",
+	TomName = "Preto",
+	Opacity = 5,
+	Background = "Black",
+	TabsW = 160,
+	W = DEFAULT_W,
+	H = DEFAULT_H,
+}
+
+-- ===== CORES E TEMA =====
+local function findColor(name)
+	for _, p in ipairs(PALETTE) do
+		if p.name == name then
+			return p.color
+		end
+	end
+	return nil
 end
 
--- ===== HELPERS =====
-local function create(class, props, parent)
-	local obj = Instance.new(class)
+local function buildTheme(s)
+	local t = {}
+	local base = nil
+	if s.Base ~= "Darker" then
+		base = findColor(s.Base)
+	end
+	if base then
+		local k = math.clamp((s.Tone or 20) / 100, 0, 1)
+		local amt = 0.85 - 0.5 * k
+		local bg = base:Lerp(Color3.new(0, 0, 0), amt)
+		t.Background = bg
+		t.Element = bg:Lerp(base, 0.15)
+		t.ElementHold = bg:Lerp(base, 0.28)
+		t.Stroke = bg:Lerp(base, 0.35)
+		t.Dropdown = bg:Lerp(base, 0.1)
+		t.Primary = base:Lerp(Color3.new(1, 1, 1), 0.15 + 0.25 * k)
+	else
+		for k2, v in pairs(DARKER) do
+			t[k2] = v
+		end
+	end
+	t.Error = Color3.fromRGB(255, 102, 102)
+	local tc = findColor(s.TextName) or Color3.new(1, 1, 1)
+	t.Text = tc
+	t.Icons = tc
+	t.TextDark = tc:Lerp(t.Background, 0.25)
+	t.TextDarker = tc:Lerp(t.Background, 0.4)
+	return t
+end
+
+GGUI.Theme = buildTheme(GGUI.State)
+
+local function T(role)
+	return GGUI.Theme[role] or GGUI.Theme.Text
+end
+
+-- ===== UTILIDADES =====
+local function new(class, props, parent)
+	local o = Instance.new(class)
 	for k, v in pairs(props or {}) do
-		obj[k] = v
+		o[k] = v
 	end
 	if parent then
-		obj.Parent = parent
+		o.Parent = parent
 	end
-	return obj
+	return o
 end
 
--- Registra a propriedade para trocar de cor quando o tema mudar
-local function paint(obj, prop, role)
+local function corner(o, r)
+	return new("UICorner", { CornerRadius = UDim.new(0, r or 6) }, o)
+end
+
+local function tween(o, props, dur, style, dir)
+	local tw = TweenService:Create(
+		o,
+		TweenInfo.new(dur or TIME.Normal, style or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out),
+		props
+	)
+	tw:Play()
+	return tw
+end
+
+-- Dispara callbacks sem travar a interface
+local function fire(cb, ...)
+	if type(cb) ~= "function" then
+		return
+	end
+	local args = table.pack(...)
+	task.spawn(function()
+		local ok, err = pcall(cb, table.unpack(args, 1, args.n))
+		if not ok then
+			warn("[GGUI] erro em callback: " .. tostring(err))
+		end
+	end)
+end
+
+-- Registra uma propriedade para trocar de cor quando o tema mudar
+local function reg(obj, prop, role)
 	obj[prop] = T(role)
 	table.insert(GGUI.Paints, { obj = obj, prop = prop, role = role })
 	return obj
 end
 
-local function round(obj, r)
-	return create("UICorner", { CornerRadius = UDim.new(0, r or 6) }, obj)
-end
-
-local function tween(obj, props, t)
-	TweenService:Create(obj, TweenInfo.new(t or 0.2, Enum.EasingStyle.Quint), props):Play()
+-- Registra uma função que reaplica cores quando o tema mudar
+local function regFn(fn)
+	table.insert(GGUI.Paints, { fn = fn })
+	pcall(fn)
 end
 
 local function label(parent, props, role)
@@ -113,51 +195,306 @@ local function label(parent, props, role)
 	for k, v in pairs(props or {}) do
 		p[k] = v
 	end
-	local l = create("TextLabel", p, parent)
-	paint(l, "TextColor3", role or "Text")
+	local l = new("TextLabel", p, parent)
+	reg(l, "TextColor3", role or "Text")
 	return l
 end
 
-local function draggable(handle, target)
-	local dragging, startInput, startPos = false, nil, nil
-	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			startInput = input.Position
-			startPos = target.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
+local function hoverable(hit, frame)
+	hit.MouseEnter:Connect(function()
+		tween(frame, { BackgroundColor3 = T("ElementHold") }, TIME.Hover)
 	end)
-	UIS.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local d = input.Position - startInput
-			target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-		end
+	hit.MouseLeave:Connect(function()
+		tween(frame, { BackgroundColor3 = T("Element") }, TIME.Hover)
 	end)
 end
 
-local function titles(f, name, desc, pad)
-	pad = pad or 70
-	label(f, {
+-- Arrasto suave da janela (com Lerp, como a Gold)
+local function draggable(handle, target, win)
+	local dragging, startMouse, startGoal, goal = false, nil, nil, nil
+	handle.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startMouse = i.Position
+			startGoal = target.Position
+			goal = target.Position
+		end
+	end)
+	table.insert(win.Connections, UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local d = i.Position - startMouse
+			goal = UDim2.new(startGoal.X.Scale, startGoal.X.Offset + d.X, startGoal.Y.Scale, startGoal.Y.Offset + d.Y)
+		end
+	end))
+	table.insert(win.Connections, UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				win:_save()
+			end
+			dragging = false
+		end
+	end))
+	table.insert(win.Connections, RunService.RenderStepped:Connect(function()
+		if goal and target.Parent then
+			target.Position = target.Position:Lerp(goal, 0.5)
+		end
+	end))
+end
+
+-- Alça de arrasto genérica (redimensionar e largura das abas)
+local function dragHandle(handle, win, onStart, onDelta, onEnd)
+	local dragging, startMouse = false, nil
+	handle.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startMouse = i.Position
+			if onStart then
+				onStart()
+			end
+		end
+	end)
+	table.insert(win.Connections, UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			onDelta(i.Position - startMouse)
+		end
+	end))
+	table.insert(win.Connections, UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			if dragging and onEnd then
+				onEnd()
+			end
+			dragging = false
+		end
+	end))
+end
+
+local function rowTitles(f, name, desc, rightPad)
+	local pad = rightPad or 70
+	local t = label(f, {
 		Position = desc and UDim2.fromOffset(10, 7) or UDim2.fromOffset(10, 0),
 		Size = desc and UDim2.new(1, -pad, 0, 18) or UDim2.new(1, -pad, 1, 0),
 		Text = tostring(name),
 	}, "Text")
+	local d = nil
 	if desc then
-		label(f, {
+		d = label(f, {
 			Position = UDim2.fromOffset(10, 26),
 			Size = UDim2.new(1, -pad, 0, 16),
 			Text = tostring(desc),
 			TextSize = 11,
 		}, "TextDark")
 	end
+	return t, d
 end
 
--- ===== LIBRARY =====
+local function readJson(path)
+	if not path or not (isfile and readfile) then
+		return nil
+	end
+	local ok, exists = pcall(isfile, path)
+	if not (ok and exists) then
+		return nil
+	end
+	local ok2, data = pcall(function()
+		return HttpService:JSONDecode(readfile(path))
+	end)
+	if ok2 and type(data) == "table" then
+		return data
+	end
+	return nil
+end
+
+-- ===== COMPONENTES (base comum) =====
+local function newComp(tab, frame, t, d)
+	return setmetatable({
+		Frame = frame,
+		Tab = tab,
+		Window = tab.Window,
+		_title = t,
+		_desc = d,
+		_cbs = {},
+	}, Comp)
+end
+
+function Comp:SetTitle(v)
+	if self._title then
+		self._title.Text = tostring(v)
+	end
+end
+
+function Comp:SetDescription(v)
+	if self._desc then
+		self._desc.Text = tostring(v)
+	end
+end
+Comp.SetDesc = Comp.SetDescription
+Comp.SetContent = Comp.SetDescription
+
+function Comp:SetVisible(v)
+	self.Frame.Visible = v and true or false
+end
+
+function Comp:Destroy()
+	self.Frame:Destroy()
+end
+
+function Comp:AddCallback(fn)
+	if type(fn) == "function" then
+		table.insert(self._cbs, fn)
+	end
+end
+Comp.NewCallback = Comp.AddCallback
+
+function Comp:_emit(...)
+	for _, f in ipairs(self._cbs) do
+		fire(f, ...)
+	end
+end
+
+-- ===== TEMA: API PÚBLICA =====
+local function lastWin()
+	return GGUI.Windows[#GGUI.Windows]
+end
+
+function GGUI:IsValidTheme(name)
+	return name == "Darker" or findColor(name) ~= nil
+end
+
+function GGUI:GetThemes()
+	local out = { "Darker" }
+	for _, p in ipairs(PALETTE) do
+		table.insert(out, p.name)
+	end
+	return out
+end
+
+function GGUI:GetTheme(name)
+	return buildTheme({ Base = name, Tone = GGUI.State.Tone, TextName = GGUI.State.TextName })
+end
+
+function GGUI:GetCurrentTheme()
+	return GGUI.State.Base
+end
+
+function GGUI:_refreshTheme()
+	GGUI.Theme = buildTheme(GGUI.State)
+	for i = #GGUI.Paints, 1, -1 do
+		local p = GGUI.Paints[i]
+		if p.fn then
+			local ok = pcall(p.fn)
+			if not ok then
+				table.remove(GGUI.Paints, i)
+			end
+		elseif p.obj and p.obj.Parent ~= nil then
+			p.obj[p.prop] = T(p.role)
+		else
+			table.remove(GGUI.Paints, i)
+		end
+	end
+end
+
+function GGUI:_applyAll()
+	GGUI:_refreshTheme()
+	for _, w in ipairs(GGUI.Windows) do
+		w:_applyTom()
+	end
+end
+
+function GGUI:SetTheme(name)
+	if not GGUI:IsValidTheme(name) then
+		return false
+	end
+	GGUI.State.Base = name
+	GGUI:_applyAll()
+	local w = lastWin()
+	if w then
+		w:_save()
+	end
+	return true
+end
+
+function GGUI:SetUIScale(v)
+	local w = lastWin()
+	if w then
+		w.Scale.Scale = math.clamp(tonumber(v) or 1, LIMITS.Scale[1], LIMITS.Scale[2])
+	end
+end
+
+function GGUI:GetMaxScale()
+	return LIMITS.Scale[2]
+end
+
+function GGUI:GetMinScale()
+	return LIMITS.Scale[1]
+end
+
+function GGUI:GetIconByName(name)
+	return ICONS[name]
+end
+
+function GGUI:Notify(cfg)
+	local w = lastWin()
+	if w then
+		return w:Notify(cfg)
+	end
+end
+GGUI.MakeNotify = GGUI.Notify
+
+function GGUI:NewNotifyGroup(cfg)
+	local w = lastWin()
+	if w then
+		return w:NewNotifyGroup(cfg)
+	end
+end
+
+function GGUI:Destroy()
+	for _, w in ipairs(GGUI.Windows) do
+		w:Destroy()
+	end
+	GGUI.Windows = {}
+end
+
+-- ===== CARREGAMENTO DAS CONFIGURAÇÕES =====
+function GGUI:_loadSettings(win)
+	local folder = win.ScriptFolder
+	local lib = readJson(folder and (folder .. "/LibrarySettings.json"))
+	local s = GGUI.State
+	if lib then
+		if type(lib.Base) == "string" and GGUI:IsValidTheme(lib.Base) then s.Base = lib.Base end
+		if type(lib.Tone) == "number" then s.Tone = math.clamp(lib.Tone, 0, 100) end
+		if type(lib.TextName) == "string" and findColor(lib.TextName) then s.TextName = lib.TextName end
+		if type(lib.TomName) == "string" and findColor(lib.TomName) then s.TomName = lib.TomName end
+		if type(lib.Opacity) == "number" then s.Opacity = math.clamp(lib.Opacity, 0, 100) end
+		if type(lib.Background) == "string" then s.Background = lib.Background end
+		if type(lib.TabsW) == "number" then s.TabsW = math.clamp(lib.TabsW, LIMITS.TabsW[1], LIMITS.TabsW[2]) end
+		if type(lib.W) == "number" then s.W = math.clamp(lib.W, LIMITS.W[1], LIMITS.W[2]) end
+		if type(lib.H) == "number" then s.H = math.clamp(lib.H, LIMITS.H[1], LIMITS.H[2]) end
+	end
+	local flags = readJson(folder and (folder .. "/ScriptFlags.json"))
+	if flags then
+		win.Flags = flags
+	end
+end
+
+-- ===== TABS (estado visual) =====
+local function paintTab(win, tab, instant)
+	local on = (win.Selected == tab)
+	local bgc = on and T("ElementHold") or T("Element")
+	local tr = on and 0.1 or 0.4
+	local isz = on and UDim2.fromOffset(4, 13) or UDim2.fromOffset(4, 4)
+	local itr = on and 0 or 1
+	if instant then
+		tab.Button.BackgroundColor3 = bgc
+		tab.Button.BackgroundTransparency = tr
+		tab.Indicator.Size = isz
+		tab.Indicator.BackgroundTransparency = itr
+	else
+		tween(tab.Button, { BackgroundColor3 = bgc, BackgroundTransparency = tr }, TIME.Tab)
+		tween(tab.Indicator, { Size = isz, BackgroundTransparency = itr }, TIME.Tab)
+	end
+end
+
+-- ===== LIBRARY: MakeWindow =====
 function GGUI:MakeWindow(cfg)
 	cfg = cfg or {}
 	local win = setmetatable({}, Window)
@@ -169,54 +506,51 @@ function GGUI:MakeWindow(cfg)
 	win.Flags = {}
 	win.TabList = {}
 	win.Connections = {}
-	win.Refreshers = {}
 	win.Minimized = false
-	win.TomOpacity = 5
+	win.Shrunk = false
+	win.SquareAlways = false
+	win.Keybind = nil
 
-	-- carrega flags salvas
-	if win.ScriptFolder and isfile and readfile then
-		local path = win.ScriptFolder .. "/Flags.json"
-		if isfile(path) then
-			local ok, data = pcall(function()
-				return HttpService:JSONDecode(readfile(path))
-			end)
-			if ok and type(data) == "table" then
-				win.Flags = data
-			end
-		end
-	end
-
-	-- tema salvo na aba Config (flag "UiTheme")
-	if type(win.Flags["UiTheme"]) == "string" and GGUI.Themes[win.Flags["UiTheme"]] then
-		GGUI.CurrentTheme = win.Flags["UiTheme"]
-	end
+	GGUI:_loadSettings(win)
+	GGUI:_refreshTheme()
 
 	local parent = (gethui and gethui()) or CoreGui
 	local old = parent:FindFirstChild("GGUI")
 	if old then
 		old:Destroy()
 	end
-	win.Screen = create("ScreenGui", {
+	win.Screen = new("ScreenGui", {
 		Name = "GGUI",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 10,
 	}, parent)
 
-	local size = cfg.Size or UDim2.fromOffset(620, 420)
-	win.Main = paint(create("Frame", {
+	local s = GGUI.State
+	local vp = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize) or Vector2.new(1920, 1080)
+
+	-- janela principal
+	win.Main = new("Frame", {
 		Name = "Main",
-		Size = size,
-		Position = UDim2.new(0.5, -size.X.Offset / 2, 0.5, -size.Y.Offset / 2),
+		Size = UDim2.fromOffset(s.W, s.H),
+		Position = UDim2.fromOffset((vp.X - s.W) / 2, (vp.Y - s.H) / 2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 0.03,
 		Active = true,
 		ClipsDescendants = true,
-	}, win.Screen), "BackgroundColor3", "Background")
-	round(win.Main, 8)
-	win.Scale = create("UIScale", {}, win.Main)
+	}, win.Screen)
+	corner(win.Main, 8)
+	win.Scale = new("UIScale", {}, win.Main)
+	win.Gradient = new("UIGradient", { Rotation = 90 }, win.Main)
+	local gradient = win.Gradient
+	regFn(function()
+		local bg = T("Background")
+		gradient.Color = ColorSequence.new(bg:Lerp(T("Primary"), 0.04), bg)
+	end)
 
-	-- fundo (atrás de tudo) + camada escura
-	win.BgImage = create("ImageLabel", {
+	-- fundo atrás de tudo e camada colorida
+	win.BgImage = new("ImageLabel", {
 		Name = "Fundo",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -224,227 +558,293 @@ function GGUI:MakeWindow(cfg)
 		ZIndex = 0,
 		Visible = false,
 	}, win.Main)
-	round(win.BgImage, 8)
-	win.Tom = create("Frame", {
+	corner(win.BgImage, 8)
+	win.Tom = new("Frame", {
 		Name = "Tom",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(0, 0, 0),
 		BackgroundTransparency = 0.95,
 		ZIndex = 0,
 	}, win.BgImage)
-	round(win.Tom, 8)
+	corner(win.Tom, 8)
 
 	-- barra superior
-	win.TopBar = create("Frame", {
+	win.TopBar = new("Frame", {
 		Name = "TopBar",
-		Size = UDim2.new(1, 0, 0, 36),
+		Size = UDim2.new(1, 0, 0, TOPBAR_H),
 		BackgroundTransparency = 1,
 		Active = true,
 	}, win.Main)
-	label(win.TopBar, {
-		Position = UDim2.fromOffset(14, 0),
+	win.TitleLabel = label(win.TopBar, {
+		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(0.5, 0, 1, 0),
 		Text = win.Title,
-		TextSize = 15,
 		Font = Enum.Font.GothamBold,
+		TextSize = 14,
 	}, "Text")
-	label(win.TopBar, {
+	win.SubLabel = label(win.TopBar, {
 		Position = UDim2.new(0.5, 0, 0, 0),
 		Size = UDim2.new(0.3, 0, 1, 0),
 		Text = win.SubTitle,
 		TextSize = 10,
 	}, "TextDark")
-
-	local closeBtn = create("ImageButton", {
-		Size = UDim2.fromOffset(18, 18),
+	local closeBtn = new("ImageButton", {
+		Size = UDim2.fromOffset(16, 16),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
-		Image = ICON_CLOSE,
+		Image = ICONS.Close,
 		AutoButtonColor = false,
 	}, win.TopBar)
-	paint(closeBtn, "ImageColor3", "Text")
-	local minBtn = create("ImageButton", {
-		Size = UDim2.fromOffset(18, 18),
-		Position = UDim2.new(1, -38, 0.5, 0),
+	reg(closeBtn, "ImageColor3", "Icons")
+	local minBtn = new("ImageButton", {
+		Size = UDim2.fromOffset(16, 16),
+		Position = UDim2.new(1, -36, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
-		Image = ICON_MIN,
+		Image = ICONS.Minimize,
 		AutoButtonColor = false,
 	}, win.TopBar)
-	paint(minBtn, "ImageColor3", "Text")
+	reg(minBtn, "ImageColor3", "Icons")
 	minBtn.Activated:Connect(function()
 		win:Minimize()
 	end)
 	closeBtn.Activated:Connect(function()
 		win:Destroy()
 	end)
-	draggable(win.TopBar, win.Main)
+	draggable(win.TopBar, win.Main, win)
 
-	-- sidebar e conteúdo
-	win.Sidebar = create("ScrollingFrame", {
-		Name = "Tabs",
-		Position = UDim2.fromOffset(8, 42),
-		Size = UDim2.new(0, 170, 1, -50),
+	-- abas, conteúdo, divisor e alça de redimensionar
+	win.Sidebar = new("ScrollingFrame", {
+		Name = "Abas",
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 2,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	}, win.Main)
-	create("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, win.Sidebar)
-
-	win.Content = create("Frame", {
-		Name = "Content",
-		Position = UDim2.fromOffset(186, 42),
-		Size = UDim2.new(1, -194, 1, -50),
+	new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, win.Sidebar)
+	win.Content = new("Frame", {
+		Name = "Conteudo",
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 	}, win.Main)
+	win.Divider = new("Frame", {
+		Name = "DivisorAbas",
+		BackgroundTransparency = 1,
+		ZIndex = 3,
+	}, win.Main)
+	win.Grip = new("Frame", {
+		Name = "Redimensionar",
+		Size = UDim2.fromOffset(16, 16),
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundTransparency = 1,
+		ZIndex = 5,
+	}, win.Main)
+	local gripDot = new("Frame", {
+		Size = UDim2.fromOffset(6, 6),
+		Position = UDim2.new(1, -4, 1, -4),
+		AnchorPoint = Vector2.new(1, 1),
+		BorderSizePixel = 0,
+	}, win.Grip)
+	reg(gripDot, "BackgroundColor3", "TextDark")
+	corner(gripDot, 3)
+	win:_layout()
 
-	-- quadrado minimizado
-	win.Square = paint(create("ImageButton", {
+	local tabStart = nil
+	dragHandle(win.Divider, win, function()
+		tabStart = GGUI.State.TabsW
+	end, function(d)
+		GGUI.State.TabsW = math.clamp(tabStart + d.X, LIMITS.TabsW[1], LIMITS.TabsW[2])
+		win:_layout()
+	end, function()
+		win:_save()
+	end)
+
+	local startW, startH, startScale = GGUI.State.W, GGUI.State.H, 1
+	dragHandle(win.Grip, win, function()
+		startW, startH = GGUI.State.W, GGUI.State.H
+		startScale = win.Scale.Scale
+	end, function(d)
+		GGUI.State.W = math.clamp(startW + d.X / startScale, LIMITS.W[1], LIMITS.W[2])
+		GGUI.State.H = math.clamp(startH + d.Y / startScale, LIMITS.H[1], LIMITS.H[2])
+		if not win.Shrunk then
+			win.Main.Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H)
+		end
+	end, function()
+		win:_save()
+	end)
+
+	-- quadrado minimizado (padrão; CreateMobileMinimizer reconfigura este mesmo)
+	win.Square = reg(new("ImageButton", {
 		Name = "Minimizado",
 		Size = UDim2.fromOffset(40, 40),
-		Position = UDim2.fromScale(0.17, 0.28),
+		Position = UDim2.fromScale(0.15, 0.3),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundTransparency = 0,
 		AutoButtonColor = false,
 		ScaleType = Enum.ScaleType.Crop,
 		Visible = false,
+		ZIndex = 30,
 	}, win.Screen), "BackgroundColor3", "Element")
-	round(win.Square, 8)
+	corner(win.Square, 8)
 	win.Square.Activated:Connect(function()
 		win:Minimize()
 	end)
-	draggable(win.Square, win.Square)
+	draggable(win.Square, win.Square, win)
 
-	-- atalho de teclado
+	-- atalho de teclado (definido por NewMinimizer)
 	table.insert(win.Connections, UIS.InputBegan:Connect(function(input, gp)
-		if not gp and win.KeyBind and input.KeyCode == win.KeyBind then
+		if not gp and win.Keybind and input.KeyCode == win.Keybind then
 			win:Minimize()
 		end
 	end))
 
 	table.insert(GGUI.Windows, win)
-	table.insert(win.Refreshers, function()
-		win:_paintTabs(false)
-	end)
-	win:_setupBackgroundTab()
+	win:_setupPersonalizar()
 	return win
 end
 
-function GGUI:GetThemes()
-	local out = {}
-	for _, n in ipairs(GGUI.ThemeOrder) do
-		table.insert(out, n)
-	end
-	return out
+-- ===== WINDOW: LAYOUT E JANELA =====
+function Window:_layout()
+	local tw = GGUI.State.TabsW
+	self.Sidebar.Position = UDim2.fromOffset(8, TOPBAR_H + 8)
+	self.Sidebar.Size = UDim2.new(0, tw - 16, 1, -(TOPBAR_H + 16))
+	self.Content.Position = UDim2.fromOffset(tw + 4, TOPBAR_H + 8)
+	self.Content.Size = UDim2.new(1, -(tw + 12), 1, -(TOPBAR_H + 16))
+	self.Divider.Position = UDim2.fromOffset(tw - 2, TOPBAR_H + 8)
+	self.Divider.Size = UDim2.new(0, 4, 1, -(TOPBAR_H + 16))
+	self.Grip.Position = UDim2.new(1, -2, 1, -2)
 end
 
-function GGUI:SetTheme(name)
-	if not GGUI.Themes[name] then
-		return false
-	end
-	GGUI.CurrentTheme = name
-	for i = #GGUI.Paints, 1, -1 do
-		local p = GGUI.Paints[i]
-		if p.obj and p.obj.Parent ~= nil then
-			p.obj[p.prop] = T(p.role)
-		else
-			table.remove(GGUI.Paints, i)
-		end
-	end
-	for _, w in ipairs(GGUI.Windows) do
-		w:_refresh()
-	end
-	return true
-end
-
-function GGUI:SetUIScale(v)
-	local w = GGUI.Windows[#GGUI.Windows]
-	if w then
-		w:SetUIScale(v)
+function Window:_syncSquare()
+	if self.Square then
+		self.Square.Visible = (self.Minimized or self.SquareAlways) and true or false
 	end
 end
 
-function GGUI:MakeNotify(cfg)
-	local w = GGUI.Windows[#GGUI.Windows]
-	if w then
-		w:Notify(cfg)
-	end
-end
-
-function GGUI:Destroy()
-	for _, w in ipairs(GGUI.Windows) do
-		w:Destroy()
-	end
-	GGUI.Windows = {}
-end
-
--- ===== WINDOW =====
-function Window:_refresh()
-	for _, fn in ipairs(self.Refreshers) do
-		pcall(fn)
-	end
-end
-
-function Window:SetUIScale(v)
-	self.Scale.Scale = math.clamp(v, 0.6, 1.6)
-end
-
+-- Esconde a janela e mostra o quadrado (também usado pelo atalho)
 function Window:Minimize()
 	self.Minimized = not self.Minimized
 	self.Main.Visible = not self.Minimized
-	self.Square.Visible = self.Minimized
+	self.Shrunk = false
+	self.Main.Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H)
+	self:_syncSquare()
+end
+
+-- Versão da Gold: encolhe a janela até a barra superior
+function Window:MinimizeButton()
+	if self.Shrunk then
+		self.Shrunk = false
+		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H) }, TIME.Minimize)
+	else
+		self.Shrunk = true
+		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, TOPBAR_H) }, TIME.Minimize)
+	end
+end
+
+function Window:GetElements()
+	return {
+		MainFrame = self.Main,
+		ScreenGui = self.Screen,
+		TopBar = self.TopBar,
+		Sidebar = self.Sidebar,
+		Content = self.Content,
+		Square = self.Square,
+	}
+end
+
+function Window:GetTitle()
+	return self.Title
+end
+
+function Window:SetTitle(t)
+	self.Title = tostring(t)
+	self.TitleLabel.Text = self.Title
+end
+
+function Window:GetSubTitle()
+	return self.SubTitle
+end
+
+function Window:SetSubTitle(t)
+	self.SubTitle = tostring(t)
+	self.SubLabel.Text = self.SubTitle
+end
+
+function Window:StartWindow()
+	return self
+end
+
+function Window:SetUIScale(v)
+	self.Scale.Scale = math.clamp(tonumber(v) or 1, LIMITS.Scale[1], LIMITS.Scale[2])
 end
 
 function Window:Destroy()
 	for _, c in ipairs(self.Connections) do
 		c:Disconnect()
 	end
+	self.Connections = {}
 	if self.Screen then
 		self.Screen:Destroy()
 	end
 	self.Screen = nil
+	for i, w in ipairs(GGUI.Windows) do
+		if w == self then
+			table.remove(GGUI.Windows, i)
+			break
+		end
+	end
 end
 
-function Window:NewMinimizer(keycode)
-	self.KeyBind = keycode
-	local win = self
-	local m = {}
-	function m:CreateMobileMinimizer(props)
-		for k, v in pairs(props or {}) do
+-- ===== MINIMIZADOR =====
+function Window:NewMinimizer(cfg)
+	local key = cfg
+	if type(cfg) == "table" then
+		key = cfg.KeyCode or cfg[1]
+	end
+	self.Keybind = key
+	return setmetatable({ Window = self }, Minimizer)
+end
+
+function Minimizer:SetKeyCode(k)
+	self.Window.Keybind = k
+end
+Minimizer.SetKey = Minimizer.SetKeyCode
+
+function Minimizer:CreateMobileMinimizer(props)
+	props = props or {}
+	local win = self.Window
+	local sq = win.Square
+	local cr = props.Corner
+	local rad = (type(cr) == "number" and cr) or (typeof(cr) == "UDim" and cr.Offset) or 8
+
+	for k, v in pairs(props) do
+		if k ~= "Corner" and k ~= "Stroke" and k ~= "Always" then
 			pcall(function()
-				win.Square[k] = v
+				sq[k] = v
 			end)
 		end
-		return win.Square
 	end
-	function m:SetKeyCode(k)
-		win.KeyBind = k
+
+	local c = sq:FindFirstChildOfClass("UICorner")
+	if c then
+		c.CornerRadius = UDim.new(0, rad)
+	else
+		corner(sq, rad)
 	end
-	return m
+
+	if props.Stroke then
+		local st = sq:FindFirstChildOfClass("UIStroke") or new("UIStroke", {}, sq)
+		st.Color = props.Stroke.Color or T("Stroke")
+		st.Thickness = props.Stroke.Thickness or 1
+	end
+
+	win.SquareAlways = props.Always == true
+	win:_syncSquare()
+	return sq
 end
 
-function Window:_save()
-	if self._saving then
-		return
-	end
-	self._saving = true
-	task.delay(0.5, function()
-		self._saving = false
-		if self.ScriptFolder and writefile then
-			pcall(function()
-				if makefolder and isfolder and not isfolder(self.ScriptFolder) then
-					makefolder(self.ScriptFolder)
-				end
-				writefile(self.ScriptFolder .. "/Flags.json", HttpService:JSONEncode(self.Flags))
-			end)
-		end
-	end)
-end
-
+-- ===== FLAGS E ARQUIVOS =====
 function Window:SetFlag(name, value)
 	self.Flags[name] = value
 	self:_save()
@@ -456,94 +856,242 @@ end
 
 function Window:DeleteFlags()
 	self.Flags = {}
-	if self.ScriptFolder and delfile and isfile and isfile(self.ScriptFolder .. "/Flags.json") then
-		pcall(delfile, self.ScriptFolder .. "/Flags.json")
+	local p = self:_path("ScriptFlags.json")
+	if p and delfile and isfile and isfile(p) then
+		pcall(delfile, p)
 	end
 end
+
+function Window:_path(file)
+	if not self.ScriptFolder then
+		return nil
+	end
+	return self.ScriptFolder .. "/" .. file
+end
+
+function Window:ReadFile(file)
+	local p = self:_path(file) or file
+	if isfile and readfile and isfile(p) then
+		return readfile(p)
+	end
+	return nil
+end
+
+function Window:WriteFile(file, content)
+	if not writefile then
+		return false
+	end
+	if self.ScriptFolder and makefolder and isfolder and not isfolder(self.ScriptFolder) then
+		pcall(makefolder, self.ScriptFolder)
+	end
+	local p = self:_path(file) or file
+	return (pcall(writefile, p, content))
+end
+
+-- Salva com atraso de 0.5 s para agrupar alterações (igual à Gold)
+function Window:_save()
+	if self._queued then
+		return
+	end
+	self._queued = true
+	task.delay(0.5, function()
+		self._queued = false
+		self:_writeSettings()
+	end)
+end
+
+function Window:_writeSettings()
+	if not self.ScriptFolder then
+		return
+	end
+	local s = GGUI.State
+	local lib = {
+		Base = s.Base,
+		Tone = s.Tone,
+		TextName = s.TextName,
+		TomName = s.TomName,
+		Opacity = s.Opacity,
+		Background = s.Background,
+		TabsW = s.TabsW,
+		W = s.W,
+		H = s.H,
+	}
+	pcall(function()
+		self:WriteFile("LibrarySettings.json", HttpService:JSONEncode(lib))
+	end)
+	pcall(function()
+		self:WriteFile("ScriptFlags.json", HttpService:JSONEncode(self.Flags))
+	end)
+end
+
+-- ===== NOTIFICAÇÕES =====
+function Window:SetNotifyDefaultIcon(icon)
+	self.NotifyIcon = icon
+end
+Window.SetDefaultNotifyIcon = Window.SetNotifyDefaultIcon
 
 function Window:Notify(cfg)
 	cfg = cfg or {}
 	local title = cfg.Title or cfg.Name or cfg[1] or "Aviso"
 	local content = cfg.Content or cfg.Text or cfg[2] or ""
-	local duration = cfg.Duration or cfg.Time or cfg[4] or 5
+	local icon = cfg.Icon or cfg.Image or cfg[3] or self.NotifyIcon
+	local dur = tonumber(cfg.Duration or cfg.Countdown or cfg.Time or cfg[4]) or 5
 
 	if not self.NotifyHolder then
-		self.NotifyHolder = create("Frame", {
-			Name = "Notify",
-			Size = UDim2.new(0, 280, 1, -20),
-			Position = UDim2.new(1, -290, 0, 10),
+		self.NotifyHolder = new("Frame", {
+			Name = "Notificacoes",
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, -12, 1, -12),
+			Size = UDim2.fromOffset(280, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
+			ZIndex = 20,
 		}, self.Screen)
-		create("UIListLayout", {
-			VerticalAlignment = Enum.VerticalAlignment.Bottom,
+		new("UIListLayout", {
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Padding = UDim.new(0, 8),
+			VerticalAlignment = Enum.VerticalAlignment.Bottom,
 		}, self.NotifyHolder)
 	end
 
-	local n = paint(create("Frame", {
-		Size = UDim2.new(1, 0, 0, 60),
+	self._notifyN = (self._notifyN or 0) + 1
+	local wrap = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 64),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		LayoutOrder = self._notifyN,
+	}, self.NotifyHolder)
+
+	local card = reg(new("Frame", {
+		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.fromScale(1.2, 0),
 		BackgroundTransparency = 0.05,
-		LayoutOrder = #self.NotifyHolder:GetChildren() + 1,
-	}, self.NotifyHolder), "BackgroundColor3", "Background")
-	round(n, 8)
-	label(n, {
-		Position = UDim2.fromOffset(12, 8),
-		Size = UDim2.new(1, -24, 0, 18),
+	}, wrap), "BackgroundColor3", "Background")
+	corner(card, 8)
+
+	local textX = 12
+	if icon then
+		new("ImageLabel", {
+			Size = UDim2.fromOffset(24, 24),
+			Position = UDim2.fromOffset(10, 10),
+			BackgroundTransparency = 1,
+			Image = tostring(icon),
+		}, card)
+		textX = 42
+	end
+
+	label(card, {
+		Position = UDim2.fromOffset(textX, 8),
+		Size = UDim2.new(1, -textX - 12, 0, 18),
 		Text = tostring(title),
 		Font = Enum.Font.GothamBold,
 		TextSize = 14,
 	}, "Text")
-	label(n, {
-		Position = UDim2.fromOffset(12, 28),
-		Size = UDim2.new(1, -24, 0, 26),
+	label(card, {
+		Position = UDim2.fromOffset(textX, 27),
+		Size = UDim2.new(1, -textX - 12, 0, 28),
 		Text = tostring(content),
 		TextSize = 12,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		TextTruncate = Enum.TextTruncate.None,
 	}, "TextDark")
-	task.delay(tonumber(duration) or 5, function()
-		if n.Parent then
-			n:Destroy()
+
+	-- barra de contagem regressiva
+	local cd = reg(new("Frame", {
+		Position = UDim2.new(0, 0, 1, -3),
+		Size = UDim2.new(1, 0, 0, 3),
+		BorderSizePixel = 0,
+	}, card), "BackgroundColor3", "Primary")
+	corner(cd, 2)
+
+	-- clique para fechar
+	local hit = new("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+	}, card)
+
+	tween(card, { Position = UDim2.fromScale(0, 0) }, TIME.NotifyIn)
+	tween(cd, { Size = UDim2.new(0, 0, 0, 3) }, dur, Enum.EasingStyle.Linear)
+
+	local closed = false
+	local function close()
+		if closed then
+			return
 		end
-	end)
+		closed = true
+		local tw = tween(card, { Position = UDim2.fromScale(1.2, 0) }, TIME.NotifyOut)
+		tw.Completed:Connect(function()
+			wrap:Destroy()
+		end)
+	end
+	hit.Activated:Connect(close)
+	task.delay(dur, close)
+	return { Close = close }
 end
 
--- Caixa de confirmação: cfg.Title, cfg.Content, cfg.Options = { {Title, Callback}, ... }
+function Window:NewNotifyGroup(cfg)
+	cfg = cfg or {}
+	local defaults = {
+		Title = cfg.Title or cfg.Name or cfg[1],
+		Content = cfg.Content or cfg[2],
+		Icon = cfg.Icon or cfg[3],
+		Duration = cfg.Duration or cfg[4],
+	}
+	local win = self
+	local group = {}
+	function group:Notify(c2)
+		c2 = c2 or {}
+		return win:Notify({
+			Title = c2.Title or c2.Name or c2[1] or defaults.Title,
+			Content = c2.Content or c2.Text or c2[2] or defaults.Content,
+			Icon = c2.Icon or c2[3] or defaults.Icon,
+			Duration = c2.Duration or c2[4] or defaults.Duration,
+		})
+	end
+	return group
+end
+Window.NewNotificationGroup = Window.NewNotifyGroup
+
+-- ===== DIALOG =====
 function Window:Dialog(cfg)
 	cfg = cfg or {}
 	if self.DialogOverlay then
 		self.DialogOverlay:Destroy()
 	end
 
-	local overlay = create("TextButton", {
+	local overlay = new("TextButton", {
+		Name = "Dialog",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.45,
+		BackgroundTransparency = 1,
 		Text = "",
 		AutoButtonColor = false,
 		ZIndex = 50,
 		Active = true,
 	}, self.Main)
-	round(overlay, 8)
+	tween(overlay, { BackgroundTransparency = 0.45 }, TIME.Dialog)
 	self.DialogOverlay = overlay
 
-	local box = paint(create("Frame", {
+	local box = reg(new("Frame", {
 		Size = UDim2.new(0.8, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = 51,
 	}, overlay), "BackgroundColor3", "Background")
-	round(box, 8)
-	create("UIPadding", {
+	corner(box, 8)
+	local sc = new("UIScale", { Scale = 1.2 }, box)
+	tween(sc, { Scale = 1 }, TIME.Dialog)
+	new("UIPadding", {
 		PaddingTop = UDim.new(0, 12),
 		PaddingBottom = UDim.new(0, 12),
 		PaddingLeft = UDim.new(0, 12),
 		PaddingRight = UDim.new(0, 12),
 	}, box)
-	create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, box)
+	new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, box)
 
 	local function close()
 		if self.DialogOverlay == overlay then
@@ -572,13 +1120,13 @@ function Window:Dialog(cfg)
 		LayoutOrder = 2,
 	}, "TextDark")
 
-	local row = create("Frame", {
+	local row = new("Frame", {
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
 		ZIndex = 52,
 		LayoutOrder = 3,
 	}, box)
-	create("UIListLayout", {
+	new("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		Padding = UDim.new(0, 6),
@@ -586,51 +1134,46 @@ function Window:Dialog(cfg)
 	}, row)
 
 	for i, opt in ipairs(cfg.Options or {}) do
-		local otitle = opt.Title or opt.Name or opt[1] or "OK"
 		local ocb = opt.Callback or opt[2]
-		local b = create("TextButton", {
+		local b = reg(new("TextButton", {
 			Size = UDim2.new(0, 0, 1, 0),
 			AutomaticSize = Enum.AutomaticSize.X,
-			Text = tostring(otitle),
+			Text = tostring(opt.Title or opt.Name or opt[1] or "OK"),
 			Font = Enum.Font.GothamMedium,
 			TextSize = 12,
 			AutoButtonColor = false,
 			ZIndex = 52,
 			LayoutOrder = i,
-		}, row)
-		paint(b, "BackgroundColor3", "Primary")
-		paint(b, "TextColor3", "Text")
-		round(b, 6)
-		create("UIPadding", {
+		}, row), "BackgroundColor3", "Primary")
+		reg(b, "TextColor3", "Text")
+		corner(b, 6)
+		new("UIPadding", {
 			PaddingLeft = UDim.new(0, 10),
 			PaddingRight = UDim.new(0, 10),
 		}, b)
 		b.Activated:Connect(function()
 			close()
-			if ocb then
-				task.spawn(ocb)
-			end
+			fire(ocb)
 		end)
 	end
 end
 
-function Window:_paintTabs(animate)
+-- ===== ABAS =====
+function Window:GetTabByTitle(name)
 	for _, t in ipairs(self.TabList) do
-		local on = (t == self.Selected)
-		local bg = on and T("Primary") or T("Element")
-		local tr = on and 0.1 or 0.4
-		if animate then
-			tween(t.Button, { BackgroundColor3 = bg, BackgroundTransparency = tr }, 0.2)
-		else
-			t.Button.BackgroundColor3 = bg
-			t.Button.BackgroundTransparency = tr
+		if t.Name == name then
+			return t
 		end
 	end
+	return nil
 end
+Window.GetTabByName = Window.GetTabByTitle
 
-function Window:SelectTab(tab)
+function Window:SelectTab(tab, instant)
 	if type(tab) == "number" then
 		tab = self.TabList[tab]
+	elseif type(tab) == "string" then
+		tab = self:GetTabByTitle(tab)
 	end
 	if not tab then
 		return
@@ -639,27 +1182,49 @@ function Window:SelectTab(tab)
 		t.Page.Visible = (t == tab)
 	end
 	self.Selected = tab
-	self:_paintTabs(true)
+	for _, t in ipairs(self.TabList) do
+		paintTab(self, t, instant)
+	end
 end
 
-function Window:_newTab(name, isBg)
-	local order = isBg and 100000 or (#self.TabList + 1)
-	local btn = paint(create("TextButton", {
+-- isLast = true para a aba Personalizar, que fica sempre por último
+function Window:_newTab(name, isLast)
+	local tab = setmetatable({ Window = self, Name = name, Order = 0, IsLast = isLast }, Tab)
+
+	local btn = new("Frame", {
+		Name = "Aba_" .. tostring(name),
 		Size = UDim2.new(1, 0, 0, 36),
-		AutoButtonColor = false,
-		Text = "",
-		LayoutOrder = order,
-	}, self.Sidebar), "BackgroundColor3", "Element")
-	btn.BackgroundTransparency = 0.4
-	round(btn, 6)
+		LayoutOrder = isLast and 100000 or (#self.TabList + 1),
+	}, self.Sidebar)
+	corner(btn, 6)
+
+	local ind = new("Frame", {
+		Name = "Indicador",
+		Size = UDim2.fromOffset(4, 4),
+		Position = UDim2.new(0, 4, 0.5, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
+	}, btn)
+	reg(ind, "BackgroundColor3", "Primary")
+	corner(ind, 2)
+
 	label(btn, {
-		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -20, 1, 0),
+		Position = UDim2.fromOffset(14, 0),
+		Size = UDim2.new(1, -22, 1, 0),
 		Text = tostring(name),
 		TextSize = 13,
 	}, "Text")
 
-	local page = paint(create("ScrollingFrame", {
+	local hit = new("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+	}, btn)
+
+	local page = new("ScrollingFrame", {
+		Name = "Pagina_" .. tostring(name),
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -668,22 +1233,41 @@ function Window:_newTab(name, isBg)
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		Visible = false,
-	}, self.Content), "ScrollBarImageColor3", "Primary")
-	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, page)
-	create("UIPadding", {
+	}, self.Content)
+	reg(page, "ScrollBarImageColor3", "Primary")
+	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, page)
+	new("UIPadding", {
 		PaddingLeft = UDim.new(0, 6),
 		PaddingRight = UDim.new(0, 8),
 		PaddingTop = UDim.new(0, 4),
 		PaddingBottom = UDim.new(0, 6),
 	}, page)
 
-	local tab = setmetatable({ Window = self, Page = page, Button = btn, Order = 0, IsBg = isBg }, Tab)
-	btn.Activated:Connect(function()
+	tab.Button = btn
+	tab.Indicator = ind
+	tab.Page = page
+	table.insert(self.TabList, tab)
+
+	regFn(function()
+		paintTab(self, tab, true)
+	end)
+
+	hit.Activated:Connect(function()
 		self:SelectTab(tab)
 	end)
-	table.insert(self.TabList, tab)
-	if not isBg and not self.Selected then
-		self:SelectTab(tab)
+	hit.MouseEnter:Connect(function()
+		if self.Selected ~= tab then
+			tween(btn, { BackgroundColor3 = T("ElementHold") }, TIME.Hover)
+		end
+	end)
+	hit.MouseLeave:Connect(function()
+		if self.Selected ~= tab then
+			tween(btn, { BackgroundColor3 = T("Element") }, TIME.Hover)
+		end
+	end)
+
+	if not isLast and not self.Selected then
+		self:SelectTab(tab, true)
 	end
 	return tab
 end
@@ -693,12 +1277,18 @@ function Window:MakeTab(cfg)
 		cfg = { cfg }
 	end
 	local name = cfg.Title or cfg.Name or cfg[1] or "Tab"
-	return self:_newTab(name, false)
+	return self:_newTab(tostring(name), false)
 end
 
--- ===== FUNDOS =====
+-- ===== FUNDO E CAMADA =====
 function Window:ApplyBackground(name)
-	local info
+	if name == "Nenhum" then
+		self.BgImage.Visible = false
+		self.Main.BackgroundTransparency = 0.03
+		self.Square.Image = ""
+		return true
+	end
+	local info = nil
 	for _, b in ipairs(self.Backgrounds) do
 		if b.nome == name then
 			info = b
@@ -720,67 +1310,127 @@ function Window:ApplyBackground(name)
 	end
 	self.BgImage.Image = asset
 	self.BgImage.Visible = true
-	self.Tom.BackgroundColor3 = info.tom or Color3.new(0, 0, 0)
 	self.Main.BackgroundTransparency = 1
 	self.Square.Image = asset
 	return true
 end
 
-function Window:SetTomOpacity(pct)
-	pct = math.clamp(tonumber(pct) or 5, 0, 100)
-	self.TomOpacity = pct
-	self.Tom.BackgroundTransparency = 1 - pct / 100
+function Window:SetTomOpacity(v)
+	v = math.clamp(tonumber(v) or 5, 0, 100)
+	GGUI.State.Opacity = v
+	self.Tom.BackgroundTransparency = 1 - v / 100
 end
 
-function Window:_setupBackgroundTab()
-	if #self.Backgrounds == 0 then
-		return
-	end
-	local tab = self:_newTab("Fundos", true)
-	self.BgTab = tab
+function Window:_applyTom()
+	self.Tom.BackgroundColor3 = findColor(GGUI.State.TomName) or Color3.new(0, 0, 0)
+	self:SetTomOpacity(GGUI.State.Opacity)
+end
+
+-- ===== ABA PERSONALIZAR (sempre a última) =====
+function Window:_setupPersonalizar()
+	local tab = self:_newTab("Personalizar", true)
+	self.PersTab = tab
+	local s = GGUI.State
+	local win = self
+
 	local names = {}
 	for _, b in ipairs(self.Backgrounds) do
 		table.insert(names, b.nome)
 	end
+	table.insert(names, "Nenhum")
 
+	tab:AddSection("Fundo")
 	tab:AddDropdown({
 		Name = "Escolher fundo",
 		Options = names,
-		Default = names[1],
+		Default = s.Background,
 		Flag = "Fundo/Selecionado",
 		Callback = function(v)
-			self:ApplyBackground(v)
+			s.Background = v
+			win:ApplyBackground(v)
+			win:_save()
 		end,
 	})
 
-	local slider = tab:AddSlider({
-		Name = "Opacidade da camada escura",
+	tab:AddSection("Camada sobre o fundo")
+	tab:_palette("Cor da camada", s.TomName, function(n)
+		s.TomName = n
+		win:_applyTom()
+		win:_save()
+	end)
+	tab:AddSlider({
+		Name = "Opacidade da camada",
 		Min = 0,
 		Max = 100,
 		Increment = 1,
-		Default = 5,
-		Flag = "Fundo/Opacidade",
+		Default = s.Opacity,
 		Callback = function(v)
-			self:SetTomOpacity(v)
+			win:SetTomOpacity(v)
+			win:_save()
 		end,
 	})
-	self:SetTomOpacity(slider:Get())
 
-	local saved = self.Flags["Fundo/Selecionado"]
-	if not (type(saved) == "string" and self:ApplyBackground(saved)) then
-		self:ApplyBackground(names[1])
-	end
+	tab:AddSection("Tema")
+	tab:_palette("Cor do tema", s.Base, function(n)
+		s.Base = n
+		GGUI:_applyAll()
+		win:_save()
+	end)
+	tab:AddSlider({
+		Name = "Tom do tema",
+		Min = 0,
+		Max = 100,
+		Increment = 1,
+		Default = s.Tone,
+		Callback = function(v)
+			s.Tone = v
+			GGUI:_applyAll()
+			win:_save()
+		end,
+	})
+
+	tab:AddSection("Texto")
+	tab:_palette("Cor do texto", s.TextName, function(n)
+		s.TextName = n
+		GGUI:_applyAll()
+		win:_save()
+	end)
+
+	tab:AddSection("Restaurar")
+	tab:AddButton({
+		Name = "Restaurar padrão",
+		Callback = function()
+			s.Base = "Darker"
+			s.Tone = 20
+			s.TextName = "Branco"
+			s.TomName = "Preto"
+			s.Opacity = 5
+			GGUI:_applyAll()
+			win:SetTomOpacity(5)
+			win:_save()
+		end,
+	})
+
+	self:_applyTom()
 end
 
--- ===== TAB =====
+-- ===== TAB: COMPONENTES =====
+function Tab:Select()
+	self.Window:SelectTab(self)
+end
+
+function Tab:Unselect()
+	-- a aba selecionada muda ao escolher outra aba
+end
+
 function Tab:_row(h)
 	self.Order = self.Order + 1
-	local f = paint(create("Frame", {
+	local f = reg(new("Frame", {
 		Size = UDim2.new(1, 0, 0, h or 44),
 		LayoutOrder = self.Order,
 	}, self.Page), "BackgroundColor3", "Element")
 	f.BackgroundTransparency = 0.25
-	round(f, 6)
+	corner(f, 6)
 	return f
 end
 
@@ -797,7 +1447,7 @@ function Tab:AddSection(cfg)
 		TextSize = 15,
 		LayoutOrder = self.Order,
 	}, "Text")
-	return { SetTitle = function(_, t) l.Text = tostring(t) end }
+	return newComp(self, l, l, nil)
 end
 
 function Tab:AddParagraph(title, desc)
@@ -806,20 +1456,20 @@ function Tab:AddParagraph(title, desc)
 		title = title[1] or title.Name or title.Title
 	end
 	self.Order = self.Order + 1
-	local f = paint(create("Frame", {
+	local f = reg(new("Frame", {
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		LayoutOrder = self.Order,
 	}, self.Page), "BackgroundColor3", "Element")
 	f.BackgroundTransparency = 0.25
-	round(f, 6)
-	create("UIPadding", {
+	corner(f, 6)
+	new("UIPadding", {
 		PaddingLeft = UDim.new(0, 10),
 		PaddingRight = UDim.new(0, 10),
 		PaddingTop = UDim.new(0, 8),
 		PaddingBottom = UDim.new(0, 8),
 	}, f)
-	create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }, f)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }, f)
 	local t = label(f, {
 		Size = UDim2.new(1, 0, 0, 18),
 		Text = tostring(title or ""),
@@ -832,99 +1482,123 @@ function Tab:AddParagraph(title, desc)
 		Text = tostring(desc or ""),
 		TextSize = 12,
 		TextWrapped = true,
+		RichText = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
 		TextTruncate = Enum.TextTruncate.None,
 	}, "TextDark")
-	return {
-		SetTitle = function(_, v) t.Text = tostring(v) end,
-		SetDescription = function(_, v) d.Text = tostring(v) end,
-	}
+	return newComp(self, f, t, d)
+end
+
+function Tab:AddLabel(cfg)
+	if type(cfg) ~= "table" then
+		cfg = { cfg }
+	end
+	local text = cfg.Text or cfg[2] or cfg[1] or ""
+	local f = self:_row(34)
+	local l = label(f, {
+		Position = UDim2.fromOffset(10, 0),
+		Size = UDim2.new(1, -20, 1, 0),
+		Text = tostring(text),
+		TextSize = 12,
+		TextWrapped = true,
+	}, "TextDark")
+	return newComp(self, f, l, nil)
 end
 
 function Tab:AddToggle(cfg)
 	cfg = cfg or {}
 	local name = cfg.Name or cfg.Title or cfg[1] or "Toggle"
+	local default = cfg.Default
+	if default == nil then
+		default = cfg[2]
+	end
+	local cb = cfg.Callback or cfg[3]
+	local flag = cfg.Flag or cfg[4]
 	local desc = cfg.Description or cfg.Desc
-	local flag = cfg.Flag
-	local cb = cfg.Callback
 	local win = self.Window
 
-	local value = cfg.Default
-	if value == nil then
-		value = cfg[2] or false
-	end
-	-- toggles são guardados como 0 (ligado) e 1 (desligado), igual à Gold
+	local value = (default == true)
 	if flag and win.Flags[flag] ~= nil then
-		value = (win.Flags[flag] == 0)
+		-- toggles são guardados como 0 (ligado) e 1 (desligado), igual à Gold
+		local fv = win.Flags[flag]
+		value = (fv == 0) or (fv == true)
 	end
 
 	local f = self:_row(desc and 52 or 44)
-	titles(f, name, desc, 70)
+	local t, d = rowTitles(f, name, desc, 70)
 
-	local sw = create("Frame", {
+	local sw = new("Frame", {
 		Size = UDim2.fromOffset(38, 20),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
-		BackgroundColor3 = T("Stroke"),
+		BorderSizePixel = 0,
 	}, f)
-	round(sw, 10)
-	local knob = paint(create("Frame", {
+	corner(sw, 10)
+	local knob = reg(new("Frame", {
 		Size = UDim2.fromOffset(14, 14),
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 3, 0.5, 0),
+		BorderSizePixel = 0,
 	}, sw), "BackgroundColor3", "TextDark")
-	round(knob, 7)
+	corner(knob, 7)
 
-	local function paintSw(animate)
-		local knobPos = value and UDim2.new(1, -17, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
-		local swColor = value and T("Primary") or T("Stroke")
-		if animate then
-			tween(knob, { Position = knobPos }, 0.15)
-			tween(sw, { BackgroundColor3 = swColor }, 0.15)
+	local obj = newComp(self, f, t, d)
+	obj._cbs = cb and { cb } or {}
+
+	local function paintSw(anim)
+		local kp = value and UDim2.new(1, -17, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
+		local sc = value and T("Primary") or T("Stroke")
+		if anim then
+			tween(knob, { Position = kp }, TIME.Fast)
+			tween(sw, { BackgroundColor3 = sc }, TIME.Fast)
 		else
-			knob.Position = knobPos
-			sw.BackgroundColor3 = swColor
+			knob.Position = kp
+			sw.BackgroundColor3 = sc
 		end
 	end
-	table.insert(win.Refreshers, function()
+	regFn(function()
 		paintSw(false)
 	end)
 
-	local function set(v, fire)
+	local function set(v, emit, anim)
 		value = v and true or false
-		paintSw(true)
+		paintSw(anim)
 		if flag then
 			win.Flags[flag] = value and 0 or 1
-			if fire then
+			if emit then
 				win:_save()
 			end
 		end
-		if fire and cb then
-			task.spawn(cb, value)
+		if emit then
+			obj:_emit(value)
 		end
 	end
 
 	if flag then
 		win.Flags[flag] = value and 0 or 1
 	end
-	paintSw(false)
 
-	local hit = create("TextButton", {
+	local hit = new("TextButton", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = "",
 		AutoButtonColor = false,
 	}, f)
+	hoverable(hit, f)
 	hit.Activated:Connect(function()
-		set(not value, true)
+		set(not value, true, true)
 	end)
 
-	local obj = {}
 	function obj:Set(v)
-		set(v, true)
+		set(v, true, true)
 	end
 	function obj:Get()
 		return value
+	end
+
+	-- Gold chama o callback na criação com o valor inicial
+	if cb then
+		fire(cb, value)
 	end
 	return obj
 end
@@ -933,68 +1607,149 @@ function Tab:AddButton(cfg)
 	cfg = cfg or {}
 	local name = cfg.Name or cfg.Title or cfg[1] or "Botao"
 	local cb = cfg.Callback or cfg[2]
-	self.Order = self.Order + 1
-	local b = paint(create("TextButton", {
-		Size = UDim2.new(1, 0, 0, 40),
+	local cooldown = tonumber(cfg.Cooldown or cfg.Debounce) or 0
+	local f = self:_row(40)
+	local b = new("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = tostring(name),
 		Font = Enum.Font.GothamMedium,
 		TextSize = 13,
-		LayoutOrder = self.Order,
-	}, self.Page), "BackgroundColor3", "Element")
-	b.BackgroundTransparency = 0.25
-	paint(b, "TextColor3", "Text")
-	round(b, 6)
+	}, f)
+	reg(b, "TextColor3", "Text")
+	hoverable(b, f)
+
+	local obj = newComp(self, f, nil, nil)
+	obj._cbs = cb and { cb } or {}
+	obj._title = nil
+	function obj:SetTitle(v)
+		b.Text = tostring(v)
+	end
+	local last = 0
 	b.Activated:Connect(function()
-		if cb then
-			task.spawn(cb)
+		local now = os.clock()
+		if now - last < cooldown then
+			return
 		end
+		last = now
+		obj:_emit()
 	end)
-	return {
-		SetTitle = function(_, t) b.Text = tostring(t) end,
-		Callback = function(_, fn) cb = fn end,
-	}
+	return obj
+end
+
+function Tab:AddTextBox(cfg)
+	cfg = cfg or {}
+	local name = cfg.Name or cfg.Title or cfg[1] or "Input"
+	local default = cfg.Default
+	if default == nil then
+		default = cfg[2] or ""
+	end
+	local cb = cfg.Callback or cfg[3]
+	local flag = cfg.Flag or cfg[4]
+	local placeholder = cfg.Placeholder or cfg.PlaceholderText or "..."
+	local clear = (cfg.ClearOnFocus or cfg.ClearTextOnFocus) == true
+	local win = self.Window
+
+	local value = tostring(default)
+	if flag and type(win.Flags[flag]) == "string" then
+		value = win.Flags[flag]
+	end
+
+	local f = self:_row(44)
+	local t = rowTitles(f, name, nil, 170)
+	local box = reg(new("TextBox", {
+		Position = UDim2.new(1, -10, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Size = UDim2.new(0, 150, 0, 26),
+		Text = value,
+		PlaceholderText = tostring(placeholder),
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		ClearTextOnFocus = clear,
+	}, f), "BackgroundColor3", "Stroke")
+	reg(box, "TextColor3", "Text")
+	corner(box, 4)
+
+	local obj = newComp(self, f, t, nil)
+	obj._cbs = cb and { cb } or {}
+	if flag then
+		win.Flags[flag] = value
+	end
+
+	box.FocusLost:Connect(function()
+		value = box.Text
+		if flag then
+			win.Flags[flag] = value
+			win:_save()
+		end
+		obj:_emit(value)
+	end)
+
+	function obj:Set(v)
+		box.Text = tostring(v)
+		value = box.Text
+		if flag then
+			win.Flags[flag] = value
+			win:_save()
+		end
+	end
+	function obj:Get()
+		return box.Text
+	end
+	return obj
 end
 
 function Tab:AddSlider(cfg)
 	cfg = cfg or {}
+	-- posições: 1 nome, 2 min, 3 max, 4 incremento, 5 padrão, 6 callback, 7 flag
 	local name = cfg.Name or cfg.Title or cfg[1] or "Slider"
-	local min = cfg.Min or 0
-	local max = cfg.Max or 100
-	local inc = cfg.Increment or cfg.Inc or 1
-	local flag = cfg.Flag
-	local cb = cfg.Callback
+	local min = tonumber(cfg.Min or cfg[2]) or 0
+	local max = tonumber(cfg.Max or cfg[3]) or 100
+	local inc = tonumber(cfg.Increment or cfg.Inc or cfg[4]) or 1
+	local default = cfg.Default
+	if default == nil then
+		default = cfg[5]
+	end
+	local cb = cfg.Callback or cfg[6]
+	local flag = cfg.Flag or cfg[7]
 	local win = self.Window
+	if inc <= 0 then
+		inc = 1
+	end
 
-	local value = cfg.Default or min
+	local value = tonumber(default) or min
 	if flag and type(win.Flags[flag]) == "number" then
 		value = win.Flags[flag]
 	end
 
 	local f = self:_row(54)
-	label(f, {
+	local t = label(f, {
 		Position = UDim2.fromOffset(10, 6),
-		Size = UDim2.new(1, -90, 0, 18),
+		Size = UDim2.new(1, -100, 0, 18),
 		Text = tostring(name),
 	}, "Text")
 	local vl = label(f, {
-		Position = UDim2.new(1, -80, 0, 6),
-		Size = UDim2.fromOffset(70, 18),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 6),
+		Size = UDim2.fromOffset(80, 18),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		TextSize = 12,
 	}, "TextDark")
-	local bar = paint(create("Frame", {
+	local vs = new("UIScale", {}, vl)
+
+	local bar = reg(new("Frame", {
 		Position = UDim2.new(0, 10, 1, -16),
 		Size = UDim2.new(1, -20, 0, 6),
 		BorderSizePixel = 0,
 	}, f), "BackgroundColor3", "Stroke")
-	round(bar, 3)
-	local fill = paint(create("Frame", {
+	corner(bar, 3)
+	local fill = reg(new("Frame", {
 		Size = UDim2.fromScale(0, 1),
 		BorderSizePixel = 0,
 	}, bar), "BackgroundColor3", "Primary")
-	round(fill, 3)
-	local hit = create("TextButton", {
+	corner(fill, 3)
+	local hit = new("TextButton", {
 		Position = UDim2.new(0, 0, 1, -24),
 		Size = UDim2.new(1, 0, 0, 24),
 		BackgroundTransparency = 1,
@@ -1002,88 +1757,120 @@ function Tab:AddSlider(cfg)
 		AutoButtonColor = false,
 	}, f)
 
-	local function set(v, fire)
-		v = math.clamp(math.round(v / inc) * inc, min, max)
+	local obj = newComp(self, f, t, nil)
+	obj._cbs = cb and { cb } or {}
+
+	-- efeito da Gold no número ao mudar
+	local function bump()
+		vs.Scale = 0.3
+		tween(vs, { Scale = 1.2 }, 0.1)
+		task.delay(0.1, function()
+			if vs.Parent then
+				tween(vs, { Scale = 1 }, 0.2)
+			end
+		end)
+		vl.Rotation = math.random(-75, 75) / 10
+		tween(vl, { Rotation = 0 }, 0.15)
+	end
+
+	local function set(v, emit, anim)
+		v = math.clamp(min + math.floor((v - min) / inc + 0.5) * inc, min, max)
+		local changed = (v ~= value)
 		value = v
-		fill.Size = UDim2.fromScale((v - min) / math.max(max - min, 1e-9), 1)
-		vl.Text = tostring(math.floor(v * 1000) / 1000)
+		local ratio = (max - min) > 0 and (v - min) / (max - min) or 0
+		if anim then
+			tween(fill, { Size = UDim2.fromScale(ratio, 1) }, TIME.Slider)
+		else
+			fill.Size = UDim2.fromScale(ratio, 1)
+		end
+		vl.Text = tostring(math.floor(v * 1000 + 0.5) / 1000)
+		if anim and changed then
+			bump()
+		end
 		if flag then
 			win.Flags[flag] = v
-			if fire then
+			if emit then
 				win:_save()
 			end
 		end
-		if fire and cb then
-			task.spawn(cb, v)
+		if emit and changed then
+			obj:_emit(v)
 		end
 	end
-	set(value, false)
+	set(value, false, false)
 
 	local dragging = false
-	local function fromInput(input)
-		local rel = math.clamp((input.Position.X - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
-		set(min + rel * (max - min), true)
+	local function fromX(x)
+		local rel = math.clamp((x - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
+		set(min + rel * (max - min), true, true)
 	end
-	hit.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+	hit.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			fromInput(input)
+			fromX(i.Position.X)
 		end
 	end)
-	table.insert(win.Connections, UIS.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			fromInput(input)
+	table.insert(win.Connections, UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			fromX(i.Position.X)
 		end
 	end))
-	table.insert(win.Connections, UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+	table.insert(win.Connections, UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
 	end))
 
-	local obj = {}
 	function obj:Set(v)
-		set(v, true)
+		set(v, true, true)
 	end
 	function obj:Get()
 		return value
+	end
+
+	if cb then
+		fire(cb, value)
 	end
 	return obj
 end
 
 function Tab:AddDropdown(cfg)
 	cfg = cfg or {}
+	-- posições: 1 nome, 2 opções, 3 padrão, 4 callback, 5 flag
 	local name = cfg.Name or cfg.Title or cfg[1] or "Dropdown"
 	local options = cfg.Options or cfg[2] or {}
 	local default = cfg.Default
-	local flag = cfg.Flag
-	local cb = cfg.Callback
-	local multi = cfg.MultiSelect == true or cfg.Multi == true
+	if default == nil then
+		default = cfg[3]
+	end
+	local cb = cfg.Callback or cfg[4]
+	local flag = cfg.Flag or cfg[5]
+	local multi = (cfg.MultiSelect == true) or (cfg.Multi == true)
 	local win = self.Window
 
 	self.Order = self.Order + 1
-	local box = paint(create("Frame", {
+	local box = reg(new("Frame", {
 		Size = UDim2.new(1, 0, 0, 40),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		LayoutOrder = self.Order,
-	}, self.Page), "BackgroundColor3", "Element")
+	}, self.Page), "BackgroundColor3", "Dropdown")
 	box.BackgroundTransparency = 0.25
-	round(box, 6)
-	create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, box)
-	create("UIPadding", {
+	corner(box, 6)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, box)
+	new("UIPadding", {
 		PaddingLeft = UDim.new(0, 6),
 		PaddingRight = UDim.new(0, 6),
 		PaddingBottom = UDim.new(0, 6),
 	}, box)
 
-	local head = create("TextButton", {
+	local head = new("TextButton", {
 		Size = UDim2.new(1, 0, 0, 36),
 		BackgroundTransparency = 1,
 		Text = "",
 		AutoButtonColor = false,
 		LayoutOrder = 1,
 	}, box)
-	label(head, {
+	local t = label(head, {
 		Position = UDim2.fromOffset(6, 0),
 		Size = UDim2.new(0.5, 0, 1, 0),
 		Text = tostring(name),
@@ -1095,140 +1882,138 @@ function Tab:AddDropdown(cfg)
 		TextSize = 12,
 		Text = "...",
 	}, "TextDark")
-	local arrow = create("ImageLabel", {
+	local arrow = reg(new("ImageLabel", {
 		Size = UDim2.fromOffset(12, 12),
 		Position = UDim2.new(1, -4, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
-		Image = ICON_OPEN,
-	}, head)
-	paint(arrow, "ImageColor3", "Text")
+		Image = ICONS.Open,
+	}, head), "ImageColor3", "Icons")
 
-	local list = create("Frame", {
+	local body = new("Frame", {
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		Visible = false,
 		LayoutOrder = 2,
 	}, box)
-	create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }, list)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }, body)
 
-	local dd = { Options = {}, Value = nil }
-	local buttons = {}
-	local selected = {}
-	local count = 0
+	-- pesquisa dentro do dropdown
+	local search = reg(new("TextBox", {
+		Size = UDim2.new(1, 0, 0, 26),
+		Text = "",
+		PlaceholderText = "Pesquisar...",
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		ClearTextOnFocus = false,
+		LayoutOrder = 0,
+	}, body), "BackgroundColor3", "Stroke")
+	reg(search, "TextColor3", "Text")
+	corner(search, 4)
 
-	local function currentValue()
+	local dd = setmetatable({ Frame = box, Tab = self, Window = win, _title = t, _cbs = cb and { cb } or {} }, Comp)
+	dd.Options = {}
+	dd.Value = nil
+	dd._enabled = true
+
+	local buttons, order, selected = {}, {}, {}
+
+	local function current()
 		if multi then
-			local out = {}
-			for _, o in ipairs(dd.Options) do
-				if selected[o] then
-					table.insert(out, o)
-				end
+			local map = {}
+			for _, o in ipairs(order) do
+				map[o] = selected[o] and true or false
 			end
-			return out
+			return map
 		end
 		return dd.Value
 	end
 
-	local function paintOpt(opt)
-		local b = buttons[opt]
-		if not b then
-			return
-		end
-		local on = selected[opt] and true or false
-		b.BackgroundColor3 = on and T("Primary") or T("Stroke")
-	end
-
-	local function refreshLabel()
+	local function refresh()
 		if multi then
 			local names = {}
-			for _, o in ipairs(dd.Options) do
+			for _, o in ipairs(order) do
 				if selected[o] then
 					table.insert(names, o)
 				end
 			end
-			val.Text = #names > 0 and table.concat(names, ", ") or "..."
+			val.Text = (#names > 0) and table.concat(names, ", ") or "..."
 		else
 			val.Text = dd.Value and tostring(dd.Value) or "..."
 		end
-		for _, o in ipairs(dd.Options) do
-			paintOpt(o)
+		for _, o in ipairs(order) do
+			local b = buttons[o]
+			if b then
+				b.BackgroundColor3 = selected[o] and T("Primary") or T("Stroke")
+			end
 		end
 	end
+	regFn(refresh)
 
-	local function commit(fire)
-		refreshLabel()
+	local function commit(emit)
+		refresh()
 		if flag then
-			win.Flags[flag] = currentValue()
-			if fire then
+			win.Flags[flag] = current()
+			if emit then
 				win:_save()
 			end
 		end
-		if fire and cb then
-			task.spawn(cb, currentValue())
+		if emit then
+			dd:_emit(current())
 		end
 	end
-
-	table.insert(win.Refreshers, function()
-		refreshLabel()
-	end)
 
 	local function addOne(opt)
 		opt = tostring(opt)
 		if buttons[opt] then
 			return
 		end
-		count = count + 1
-		local b = create("TextButton", {
+		local b = reg(new("TextButton", {
 			Size = UDim2.new(1, 0, 0, 30),
 			AutoButtonColor = false,
 			Text = opt,
 			Font = Enum.Font.GothamMedium,
 			TextSize = 12,
-			LayoutOrder = count,
-		}, list)
-		paint(b, "TextColor3", "Text")
-		round(b, 4)
+			LayoutOrder = #order + 1,
+		}, body), "BackgroundColor3", "Stroke")
+		reg(b, "TextColor3", "Text")
+		corner(b, 4)
 		buttons[opt] = b
-		table.insert(dd.Options, opt)
+		table.insert(order, opt)
 		b.Activated:Connect(function()
+			if not dd._enabled then
+				return
+			end
 			if multi then
 				selected[opt] = (not selected[opt]) or nil
 			else
 				dd.Value = opt
-				for k in pairs(selected) do
-					selected[k] = nil
-				end
-				selected[opt] = true
-				list.Visible = false
-				arrow.Image = ICON_OPEN
+				selected = { [opt] = true }
+				body.Visible = false
+				tween(arrow, { Rotation = 0 }, TIME.Drop)
 			end
 			commit(true)
 		end)
 	end
 
-	function dd:Select(opt, fire)
-		opt = tostring(opt)
-		if not buttons[opt] then
-			return false
-		end
-		if multi then
-			selected[opt] = true
-		else
-			self.Value = opt
-			for k in pairs(selected) do
-				selected[k] = nil
+	search:GetPropertyChangedSignal("Text"):Connect(function()
+		local q = search.Text:lower()
+		for _, o in ipairs(order) do
+			local b = buttons[o]
+			if b then
+				b.Visible = (q == "") or (o:lower():find(q, 1, true) ~= nil)
 			end
-			selected[opt] = true
 		end
-		commit(fire and true or false)
-		return true
-	end
+	end)
 
-	function dd:Get()
-		return currentValue()
-	end
+	head.Activated:Connect(function()
+		if not dd._enabled then
+			return
+		end
+		body.Visible = not body.Visible
+		tween(arrow, { Rotation = body.Visible and 180 or 0 }, TIME.Drop)
+	end)
 
 	function dd:Add(...)
 		for _, o in ipairs({ ... }) do
@@ -1240,42 +2025,97 @@ function Tab:AddDropdown(cfg)
 				addOne(o)
 			end
 		end
+		self.Options = order
+	end
+
+	function dd:Remove(...)
+		for _, o in ipairs({ ... }) do
+			o = tostring(o)
+			local b = buttons[o]
+			if b then
+				b:Destroy()
+				buttons[o] = nil
+				selected[o] = nil
+				for i, v in ipairs(order) do
+					if v == o then
+						table.remove(order, i)
+						break
+					end
+				end
+				if dd.Value == o then
+					dd.Value = nil
+				end
+			end
+		end
+		self.Options = order
+		commit(false)
 	end
 
 	function dd:Clear()
 		for _, b in pairs(buttons) do
 			b:Destroy()
 		end
-		buttons = {}
-		self.Options = {}
+		buttons, order, selected = {}, {}, {}
+		self.Options = order
 		self.Value = nil
-		selected = {}
-		count = 0
 		commit(false)
 	end
 
-	function dd:Set(opts)
+	function dd:NewOptions(...)
 		self:Clear()
-		self:Add(opts)
+		self:Add(...)
+		commit(false)
+	end
+	dd.Set = dd.NewOptions
+
+	function dd:GetOptionsCount()
+		return #order
 	end
 
-	head.Activated:Connect(function()
-		list.Visible = not list.Visible
-		arrow.Image = list.Visible and ICON_CLOSED or ICON_OPEN
-	end)
+	function dd:Select(opt, emit)
+		opt = tostring(opt)
+		if not buttons[opt] then
+			return false
+		end
+		if multi then
+			selected[opt] = true
+		else
+			dd.Value = opt
+			selected = { [opt] = true }
+		end
+		commit(emit and true or false)
+		return true
+	end
+
+	function dd:Get()
+		return current()
+	end
+
+	function dd:SetEnabled(v)
+		self._enabled = v and true or false
+		local tr = self._enabled and 0 or 0.5
+		t.TextTransparency = tr
+		val.TextTransparency = tr
+		arrow.ImageTransparency = tr
+	end
 
 	dd:Add(options)
 
-	-- restaura valor salvo ou o padrão
+	-- restaura valor salvo ou padrão
 	local initial = flag and win.Flags[flag]
 	if initial == nil then
 		initial = default
 	end
 	if multi then
+		selected = {}
 		if type(initial) == "table" then
-			for _, v in ipairs(initial) do
-				if buttons[tostring(v)] then
-					selected[tostring(v)] = true
+			for k, v in pairs(initial) do
+				if type(k) == "number" then
+					if buttons[tostring(v)] then
+						selected[tostring(v)] = true
+					end
+				elseif v == true and buttons[tostring(k)] then
+					selected[tostring(k)] = true
 				end
 			end
 		end
@@ -1285,841 +2125,282 @@ function Tab:AddDropdown(cfg)
 		end
 		if initial ~= nil and buttons[tostring(initial)] then
 			dd.Value = tostring(initial)
-			selected[dd.Value] = true
+			selected = { [dd.Value] = true }
 		end
 	end
 	commit(false)
 
-	-- chama o callback logo ao criar, igual à Gold
+	-- callback na criação (como a Gold)
 	if cb then
 		task.defer(function()
-			local cv = currentValue()
-			if cv ~= nil then
-				cb(cv)
-			end
+			dd:_emit(current())
 		end)
 	end
 	return dd
 end
 
-function Tab:AddTextBox(cfg)
+function Tab:AddKeybind(cfg)
 	cfg = cfg or {}
-	local name = cfg.Name or cfg.Title or cfg[1] or "Input"
-	local default = cfg.Default or ""
-	local placeholder = cfg.Placeholder or cfg.PlaceholderText or "..."
-	local cb = cfg.Callback
+	local name = cfg.Name or cfg.Title or cfg[1] or "Tecla"
+	local default = cfg.Default or cfg[2]
+	local cb = cfg.Callback or cfg[3]
+	local flag = cfg.Flag or cfg[4]
+	local win = self.Window
+
+	local key = default
+	if flag and type(win.Flags[flag]) == "string" then
+		if win.Flags[flag] == "" then
+			key = nil
+		else
+			local ok, kc = pcall(function()
+				return Enum.KeyCode[win.Flags[flag]]
+			end)
+			if ok and kc then
+				key = kc
+			end
+		end
+	end
 
 	local f = self:_row(44)
-	titles(f, name, nil, 170)
-	local box = paint(create("TextBox", {
+	local t = rowTitles(f, name, nil, 140)
+	local btn = reg(new("TextButton", {
+		Size = UDim2.fromOffset(120, 26),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
-		Size = UDim2.new(0, 150, 0, 26),
-		Text = tostring(default),
-		PlaceholderText = tostring(placeholder),
+		AutoButtonColor = false,
 		Font = Enum.Font.GothamMedium,
 		TextSize = 12,
-		ClearTextOnFocus = false,
+		Text = "",
 	}, f), "BackgroundColor3", "Stroke")
-	paint(box, "TextColor3", "Text")
-	round(box, 4)
-	box.FocusLost:Connect(function()
-		if cb then
-			task.spawn(cb, box.Text)
-		end
-	end)
-	return {
-		Set = function(_, v) box.Text = tostring(v) end,
-		Get = function() return box.Text end,
-	}
-end
+	reg(btn, "TextColor3", "Text")
+	corner(btn, 4)
 
-return GGUIapi = {}
-	function api:Set(v)
-		selected = {}
-		if type(v) == "table" then
-			for _, item in ipairs(v) do
-				selected[item] = true
+	local obj = newComp(self, f, t, nil)
+	obj._cbs = cb and { cb } or {}
+	local listening = false
+
+	local function show()
+		if listening then
+			btn.Text = "..."
+		else
+			btn.Text = key and key.Name or "Nenhuma"
+		end
+	end
+
+	local function setKey(k, save)
+		key = k
+		listening = false
+		show()
+		if flag then
+			win.Flags[flag] = k and k.Name or ""
+			if save then
+				win:_save()
 			end
-		elseif v then
-			selected[v] = true
 		end
-		refresh()
 	end
 
-	if cfg.Default then
-		api:Set(cfg.Default)
-	else
-		refresh()
+	btn.Activated:Connect(function()
+		listening = true
+		show()
+	end)
+
+	table.insert(win.Connections, UIS.InputBegan:Connect(function(input, gp)
+		if listening then
+			if input.UserInputType == Enum.UserInputType.Keyboard then
+				if input.KeyCode == Enum.KeyCode.Escape then
+					setKey(nil, true)
+				else
+					setKey(input.KeyCode, true)
+				end
+			end
+			return
+		end
+		if not gp and key and input.KeyCode == key then
+			obj:_emit(key)
+		end
+	end))
+
+	function obj:Set(k)
+		setKey(k, true)
 	end
-	return api
+	function obj:Get()
+		return key
+	end
+	show()
+	return obj
 end
 
-function Library:TextBox(tab, cfg)
-	local row = makeRow(tab, 32, cfg.Name, cfg.Description)
-	local box = new("TextBox", {
-		Size = UDim2.new(0, 110, 0, 20),
-		Position = UDim2.new(1, -110, 0.5, -10),
-		BackgroundColor3 = Library.Theme.Stroke,
-		BorderSizePixel = 0,
+function Tab:AddDiscordInvite(cfg)
+	cfg = cfg or {}
+	local name = cfg.Name or cfg.Title or cfg[1] or "Comunidade"
+	local desc = cfg.Description or cfg.Desc or cfg[2] or ""
+	local logo = cfg.Logo or cfg.Icon or cfg.Image or ""
+	local invite = cfg.Invite or cfg.Link or ""
+
+	local extra = {}
+	if cfg.MembersOnline or cfg.Online then
+		table.insert(extra, "Online: " .. tostring(cfg.MembersOnline or cfg.Online))
+	end
+	if cfg.Members or cfg.TotalMembers then
+		table.insert(extra, "Membros: " .. tostring(cfg.Members or cfg.TotalMembers))
+	end
+	if #extra > 0 then
+		desc = desc .. "\n" .. table.concat(extra, " · ")
+	end
+
+	local f = self:_row(104)
+	local img = new("ImageLabel", {
+		Position = UDim2.fromOffset(10, 10),
+		Size = UDim2.fromOffset(72, 72),
+		BackgroundTransparency = 1,
+		Image = tostring(logo),
+		ScaleType = Enum.ScaleType.Fit,
+	}, f)
+	corner(img, 36)
+
+	local t = label(f, {
+		Position = UDim2.fromOffset(92, 10),
+		Size = UDim2.new(1, -100, 0, 18),
+		Text = tostring(name),
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+	}, "Text")
+	local d = label(f, {
+		Position = UDim2.fromOffset(92, 30),
+		Size = UDim2.new(1, -100, 0, 40),
+		Text = tostring(desc),
+		TextSize = 11,
+		TextWrapped = true,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextTruncate = Enum.TextTruncate.None,
+	}, "TextDark")
+
+	local btn = reg(new("TextButton", {
+		Position = UDim2.new(1, -10, 1, -10),
+		AnchorPoint = Vector2.new(1, 1),
+		Size = UDim2.fromOffset(124, 24),
+		AutoButtonColor = false,
+		Text = "Copiar convite",
 		Font = Enum.Font.GothamMedium,
-		TextSize = 9,
-		Text = cfg.Default or "",
-		PlaceholderText = cfg.Placeholder or "",
-		TextColor3 = Library.Theme.Text,
-		PlaceholderColor3 = Library.Theme.Dim,
-		ClearTextOnFocus = false,
-		Parent = row,
-	})
-	new("UICorner", { CornerRadius = UDim.new(0, 5), Parent = box })
-	connect(box.FocusLost, function()
-		if cfg.Callback then
-			task.spawn(cfg.Callback, box.Text)
+		TextSize = 11,
+	}, f), "BackgroundColor3", "Primary")
+	reg(btn, "TextColor3", "Text")
+	corner(btn, 4)
+	btn.Activated:Connect(function()
+		if setclipboard and invite ~= "" then
+			setclipboard(invite)
+			btn.Text = "Copiado!"
+			task.delay(1.5, function()
+				if btn.Parent then
+					btn.Text = "Copiar convite"
+				end
+			end)
 		end
 	end)
+	return newComp(self, f, t, d)
+end
+
+-- Grade de 12 cores (usada em Personalizar)
+function Tab:_palette(title, current, onPick)
+	self.Order = self.Order + 1
+	local box = reg(new("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = self.Order,
+	}, self.Page), "BackgroundColor3", "Element")
+	box.BackgroundTransparency = 0.25
+	corner(box, 6)
+	new("UIPadding", {
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 8),
+	}, box)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }, box)
+
+	local head = label(box, {
+		Size = UDim2.new(1, 0, 0, 18),
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		LayoutOrder = 1,
+	}, "Text")
+
+	local grid = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+	}, box)
+	new("UIGridLayout", {
+		CellSize = UDim2.fromOffset(56, 26),
+		CellPadding = UDim2.fromOffset(6, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, grid)
+
+	local sel = current
+	local swatches = {}
+
+	local function refresh()
+		head.Text = title .. ": " .. tostring(sel)
+		for n, sw in pairs(swatches) do
+			sw.Enabled = (n == sel)
+		end
+	end
+
+	for i, item in ipairs(PALETTE) do
+		local c = item.color
+		local lum = 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
+		local b = new("TextButton", {
+			BackgroundColor3 = c,
+			Text = "",
+			AutoButtonColor = false,
+			LayoutOrder = i,
+		}, grid)
+		corner(b, 6)
+		local st = new("UIStroke", {
+			Color = (lum > 0.6) and Color3.new(0, 0, 0) or Color3.new(1, 1, 1),
+			Thickness = 2,
+			Enabled = false,
+		}, b)
+		swatches[item.name] = st
+		b.Activated:Connect(function()
+			sel = item.name
+			refresh()
+			if onPick then
+				onPick(item.name)
+			end
+		end)
+	end
+
+	refresh()
 	return box
 end
 
-function Library:Keybind(tab, cfg)
-	local row = makeRow(tab, 32, cfg.Name, cfg.Description)
-	local btn = new("TextButton", {
-		Size = UDim2.new(0, 80, 0, 20),
-		Position = UDim2.new(1, -80, 0.5, -10),
-		BackgroundColor3 = Library.Theme.Stroke,
-		BorderSizePixel = 0,
-		Font = Enum.Font.GothamBold,
-		TextSize = 9,
-		Text = cfg.Default and cfg.Default.Name or "—",
-		Parent = row,
-	})
-	style(btn, "BackgroundColor3", "Stroke")
-	style(btn, "TextColor3", "Text")
-	new("UICorner", { CornerRadius = UDim.new(0, 5), Parent = btn })
-
-	local listening, current = false, cfg.Default
-	connect(btn.MouseButton1Click, function()
-		listening = true
-		btn.Text = "..."
-	end)
-	connect(UIS.InputBegan, function(input)
-		if listening and input.UserInputType == Enum.UserInputType.Keyboard then
-			current = input.KeyCode
-			btn.Text = input.KeyCode.Name
-			listening = false
-			if cfg.Callback then
-				task.spawn(cfg.Callback, input.KeyCode)
+return GGUIText = "",
+			AutoButtonColor = false,
+			LayoutOrder = i,
+		}, grid)
+		corner(b, 6)
+		local st = new("UIStroke", {
+			Color = (lum > 0.6) and Color3.new(0, 0, 0) or Color3.new(1, 1, 1),
+			Thickness = 2,
+			Enabled = false,
+		}, b)
+		swatches[item.name] = st
+		b.Activated:Connect(function()
+			sel = item.name
+			refresh()
+			if onPick then
+				onPick(item.name)
 			end
-		end
-	end)
-	return {
-		Get = function()
-			return current
-		end,
-	}
-end
-
---=====================================================================
---  ESTADO
---=====================================================================
-local State = {
-	Tween = nil,
-	FarmPos = nil,
-	FarmMob = nil,
-	SeenChest = {},
-	Bought = {},
-}
-
-pcall(function()
-	local effect = ReplicatedStorage:FindFirstChild("Effect")
-	local container = effect and effect:FindFirstChild("Container")
-	if container then
-		if container:FindFirstChild("Death") then
-			container.Death:Destroy()
-		end
-		if container:FindFirstChild("Respawn") then
-			container.Respawn:Destroy()
-		end
-	end
-end)
-
-pcall(function()
-	local util = ReplicatedStorage:FindFirstChild("Util")
-	local shaker = util and util:FindFirstChild("CameraShaker")
-	if shaker then
-		require(shaker):Stop()
-	end
-end)
-
---=====================================================================
---  MOVIMENTAÇÃO
---=====================================================================
-local function stopTween()
-	if State.Tween then
-		pcall(function()
-			State.Tween:Cancel()
-		end)
-		State.Tween = nil
-	end
-end
-
-local function teleport(cf, speed)
-	local _, hrp = getChar()
-	if not hrp or not cf then
-		return
-	end
-	stopTween()
-	local dist = (cf.Position - hrp.Position).Magnitude
-	if dist < 8 then
-		hrp.CFrame = cf
-		return
-	end
-	State.Tween = TweenService:Create(hrp, TweenInfo.new(dist / (speed or 360), Enum.EasingStyle.Linear), { CFrame = cf })
-	State.Tween:Play()
-end
-
-local function snap(cf)
-	local _, hrp = getChar()
-	if hrp and cf then
-		stopTween()
-		hrp.CFrame = cf
-	end
-end
-
---=====================================================================
---  COMBATE
---=====================================================================
-local function equipType(kind)
-	local char = getChar()
-	if not char then
-		return
-	end
-	local tip = (kind == "Fruit") and "Blox Fruit" or kind
-	for _, t in ipairs(char:GetChildren()) do
-		if t:IsA("Tool") and t.ToolTip == tip then
-			return t
-		end
-	end
-	for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
-		if t:IsA("Tool") and t.ToolTip == tip then
-			pcall(function()
-				char.Humanoid:EquipTool(t)
-			end)
-			return t
-		end
-	end
-end
-
-local function attack(range)
-	local char, hrp = getChar()
-	if not char or not hrp then
-		return
-	end
-	local tool = char:FindFirstChildOfClass("Tool")
-	if not tool then
-		return
-	end
-	local enemies = Workspace:FindFirstChild("Enemies")
-	if not enemies then
-		return
-	end
-
-	local targets, mainTarget = {}, nil
-	for _, mob in ipairs(enemies:GetChildren()) do
-		local mhrp = mob:FindFirstChild("HumanoidRootPart")
-		local hum = mob:FindFirstChildOfClass("Humanoid")
-		if mhrp and hum and hum.Health > 0 and (mhrp.Position - hrp.Position).Magnitude <= (range or 62) then
-			local head = mob:FindFirstChild("Head") or mhrp
-			table.insert(targets, { mob, head })
-			mainTarget = head
-		end
-	end
-	if not mainTarget then
-		return
-	end
-
-	local net = ReplicatedStorage:FindFirstChild("Modules")
-	net = net and net:FindFirstChild("Net")
-	local regAtk = net and net:FindFirstChild("RE/RegisterAttack")
-	local regHit = net and net:FindFirstChild("RE/RegisterHit")
-
-	if regAtk and regHit then
-		pcall(function()
-			regAtk:FireServer(0)
-			regHit:FireServer(mainTarget, targets)
-		end)
-		return
-	end
-
-	local rig = ReplicatedStorage:FindFirstChild("RigControllerEvent")
-	local val = Remotes:FindFirstChild("Validator")
-	if rig and val then
-		pcall(function()
-			rig:FireServer("weaponChange", tool.Name)
-			val:FireServer(math.random(1, 16777215), math.random(1, 99))
-			rig:FireServer("hit", targets, 2, "")
 		end)
 	end
+
+	refresh()
+	return box
 end
 
-local function bringMobs(range)
-	local _, hrp = getChar()
-	if not hrp or not State.FarmPos then
-		return
-	end
-	local enemies = Workspace:FindFirstChild("Enemies")
-	if not enemies then
-		return
-	end
-	for _, mob in ipairs(enemies:GetChildren()) do
-		local mhrp = mob:FindFirstChild("HumanoidRootPart")
-		local hum = mob:FindFirstChildOfClass("Humanoid")
-		if mhrp and hum and hum.Health > 0 and (not State.FarmMob or mob.Name == State.FarmMob) then
-			if (mhrp.Position - State.FarmPos.Position).Magnitude <= (range or 400) then
-				mhrp.CFrame = State.FarmPos
-				mhrp.Size = Vector3.new(60, 60, 60)
-				mhrp.Transparency = 0.9
-				mhrp.CanCollide = false
-				hum.WalkSpeed = 0
-				hum.JumpPower = 0
-				if hum:FindFirstChild("Animator") then
-					hum.Animator:Destroy()
-				end
-			end
-		end
-	end
-end
-
-local function killMob(mob, offset)
-	local mhrp = mob:FindFirstChild("HumanoidRootPart")
-	if not mhrp then
-		return
-	end
-	State.FarmPos = mhrp.CFrame
-	State.FarmMob = mob.Name
-	teleport(mhrp.CFrame * (offset or CFrame.new(0, 30, 8)))
-	attack()
-end
-
---=====================================================================
---  QUEST DINÂMICA
---=====================================================================
-local GuideCache, QuestCache
-
-local function getModules()
-	if GuideCache and QuestCache then
-		return GuideCache, QuestCache
-	end
-	pcall(function()
-		GuideCache = require(ReplicatedStorage:WaitForChild("GuideModule"))
-		QuestCache = require(ReplicatedStorage:WaitForChild("Quests"))
-	end)
-	return GuideCache, QuestCache
-end
-
-local function spawnPoints(mob)
-	local out = {}
-	local origin = Workspace:FindFirstChild("_WorldOrigin")
-	local spawns = origin and origin:FindFirstChild("EnemySpawns")
-	if not spawns then
-		return out
-	end
-	for _, part in ipairs(spawns:GetChildren()) do
-		if part:IsA("BasePart") and normalize(part.Name) == mob then
-			table.insert(out, part.CFrame)
-		end
-	end
-	return out
-end
-
-local STARTER = {
-	Marines = { level = 1, npc = CFrame.new(-2709.67944, 24.5206585, 2104.24585), mob = "Trainee", quest = "MarineQuest", display = "Trainee [Lv. 5]" },
-	Pirates = { level = 1, npc = CFrame.new(1059.99731, 16.9222069, 1549.28162), mob = "Bandit", quest = "BanditQuest1", display = "Bandit [Lv. 5]" },
-}
-
-local function resolveQuest()
-	local data = LocalPlayer:FindFirstChild("Data")
-	local lvlVal = data and data:FindFirstChild("Level")
-	local lvl = lvlVal and lvlVal.Value or 1
-
-	if lvl <= 9 then
-		local s = STARTER[tostring(LocalPlayer.Team)] or STARTER.Pirates
-		return { level = s.level, npc = s.npc, mob = s.mob, quest = s.quest, display = s.display, spawns = spawnPoints(s.mob) }
-	end
-
-	local guide, quests = getModules()
-	local npcList = guide and guide.Data and guide.Data.NPCList
-	if not npcList then
-		return nil
-	end
-
-	local bestNpc, bestReq = nil, 0
-	for _, entry in pairs(npcList) do
-		for _, req in ipairs(entry.Levels or {}) do
-			if lvl >= req and req > bestReq then
-				bestNpc, bestReq = entry, req
-			end
-		end
-	end
-	if not bestNpc then
-		return nil
-	end
-
-	for questName, tiers in pairs(quests) do
-		if questName ~= "CitizenQuest" then
-			for _, tier in pairs(tiers) do
-				if tier.LevelReq == bestReq and tier.Task then
-					for mobDisplay in pairs(tier.Task) do
-						local mob = normalize(mobDisplay)
-						return { level = bestReq, npc = bestNpc.CFrame, mob = mob, quest = questName, display = mobDisplay, spawns = spawnPoints(mob) }
-					end
-				end
-			end
-		end
-	end
-	return nil
-end
-
-local function questText()
-	local main = LocalPlayer.PlayerGui:FindFirstChild("Main")
-	local quest = main and main:FindFirstChild("Quest")
-	local container = quest and quest:FindFirstChild("Container")
-	local title = container and container:FindFirstChild("QuestTitle")
-	title = title and title:FindFirstChild("Title")
-	return (quest and quest.Visible), (title and title.Text or "")
-end
-
---=====================================================================
---  CONSTRUÇÃO DA UI
---=====================================================================
-Library:Load()
-
-local Window = Library:CreateWindow({ Title = "Venice Hub", SubTitle = "blox fruits · v2.1" })
-Window.SearchTab = Library:CreateTab(Window, "Busca", "⌕")
-
-local Farm = Library:CreateTab(Window, "Farm", "⚔")
-local Combat = Library:CreateTab(Window, "Combate", "✧")
-local Raid = Library:CreateTab(Window, "Raid", "☄")
-local Quests = Library:CreateTab(Window, "Quests", "✧")
-local Stats = Library:CreateTab(Window, "Progressão", "▲")
-local Travel = Library:CreateTab(Window, "Viagem", "✈")
-local Visual = Library:CreateTab(Window, "Visual", "◈")
-local Misc = Library:CreateTab(Window, "Diversos", "⚙")
-local Config = Library:CreateTab(Window, "Config", "≡")
-
--- FARM
-Library:Section(Farm, "Nível")
-Library:Toggle(Farm, { Name = "Auto Farm Nível", Description = "Quest automática por faixa de level", Flag = "AutoFarm", Default = Library:Flag("AutoFarm", false) })
-Library:Slider(Farm, { Name = "Distância", Min = 10, Max = 60, Default = Library:Flag("FarmDistance", 25), Increment = 1, Flag = "FarmDistance" })
-Library:Toggle(Farm, { Name = "Puxar mobs", Flag = "BringMob", Default = Library:Flag("BringMob", true) })
-
-Library:Section(Farm, "Boss")
-Library:Dropdown(Farm, {
-	Name = "Boss",
-	Options = ({
-		[1] = { "The Gorilla King", "Bobby", "The Saw", "Chef", "Yeti", "Mob Leader", "Vice Admiral", "Saber Expert", "Warden", "Chief Warden", "Magma General", "Fishman Lord", "Sky Warlord", "Lightning God", "Cyborg" },
-		[2] = { "Diamond", "Jeremy", "Fajita", "Don Swan", "Smoke Admiral", "Awakened Ice Admiral", "Tide Keeper", "Order", "Cursed Captain", "Greybeard" },
-		[3] = { "Stone", "Hydra Leader", "Kilo Admiral", "Captain Elephant", "Beautiful Pirate", "Cake Queen", "Longma", "Soul Reaper", "rip_indra", "Dough King" },
-	})[SEA],
-	Default = Library:Flag("BossSelect", "Stone"),
-	Flag = "BossSelect",
-})
-Library:Toggle(Farm, { Name = "Auto Boss", Flag = "AutoBoss", Default = Library:Flag("AutoBoss", false) })
-
-Library:Section(Farm, "Coleta")
-Library:Toggle(Farm, { Name = "Auto Baús", Description = "Coleta baús no mapa", Flag = "AutoChest", Default = Library:Flag("AutoChest", false) })
-Library:Toggle(Farm, { Name = "Auto Fruta", Description = "Pega frutas caídas", Flag = "AutoFruit", Default = Library:Flag("AutoFruit", false) })
-Library:Toggle(Farm, { Name = "Bone Farm", Description = "Castelo Assombrado (Sea 3)", Flag = "AutoBone", Default = Library:Flag("AutoBone", false) })
-Library:Toggle(Farm, { Name = "Auto Elite", Description = "Elites do Sea 3", Flag = "AutoElite", Default = Library:Flag("AutoElite", false) })
-
-Library:Section(Farm, "Material")
-Library:Dropdown(Farm, {
-	Name = "Material",
-	Options = ({
-		[1] = { "Brute", "Snow Bandit", "Fishman Warrior", "God's Guard" },
-		[2] = { "Zombie", "Snow Trooper", "Magma Ninja", "Ship Deckhand", "Arctic Warrior" },
-		[3] = { "Dragon Crew Warrior", "Marine Commando", "Fishman Raider", "Reborn Skeleton", "Peanut Scout" },
-	})[SEA],
-	Default = Library:Flag("MaterialMob", ""),
-	Flag = "MaterialMob",
-})
-Library:Toggle(Farm, { Name = "Auto Material", Flag = "AutoMaterial", Default = Library:Flag("AutoMaterial", false) })
-
--- COMBATE
-Library:Section(Combat, "Ataque")
-Library:Toggle(Combat, { Name = "Ataque rápido", Description = "Hits direto no remote", Flag = "FastAttack", Default = Library:Flag("FastAttack", true) })
-Library:Slider(Combat, { Name = "Delay (ms)", Min = 0, Max = 500, Default = Library:Flag("AttackDelay", 0), Increment = 10, Flag = "AttackDelay" })
-Library:Toggle(Combat, { Name = "Mob Aura", Flag = "MobAura", Default = Library:Flag("MobAura", false) })
-Library:Slider(Combat, { Name = "Raio da Aura", Min = 20, Max = 400, Default = Library:Flag("AuraRange", 120), Increment = 10, Flag = "AuraRange" })
-Library:Toggle(Combat, { Name = "Multi-hit", Description = "Repete o hit no mesmo alvo", Flag = "MultiHit", Default = Library:Flag("MultiHit", false) })
-Library:Dropdown(Combat, { Name = "Arma automática", Options = { "Melee", "Sword", "Fruit", "Gun" }, Default = Library:Flag("WeaponType", "Melee"), Flag = "WeaponType" })
-
-Library:Section(Combat, "Haki e skills")
-Library:Toggle(Combat, { Name = "Auto Buso", Flag = "AutoBuso", Default = Library:Flag("AutoBuso", true) })
-Library:Toggle(Combat, { Name = "Auto Ken", Flag = "AutoKen", Default = Library:Flag("AutoKen", false) })
-Library:Toggle(Combat, { Name = "Auto Skills (Z X C V)", Flag = "AutoSkills", Default = Library:Flag("AutoSkills", false) })
-Library:Slider(Combat, { Name = "Intervalo das skills", Min = 0.2, Max = 5, Default = Library:Flag("SkillDelay", 1), Increment = 0.1, Flag = "SkillDelay", Suffix = "s" })
-
--- RAID
-local function raidGui()
-	local pg = LocalPlayer:FindFirstChild("PlayerGui")
-	local main = pg and pg:FindFirstChild("Main")
-	return main and main:FindFirstChild("Raid")
-end
-
-local function raidActive()
-	local raid = raidGui()
-	return raid and raid.Visible or false
-end
-
-local function chipInBackpack()
-	local char = getChar()
-	local lists = { LocalPlayer.Backpack }
-	if char then
-		table.insert(lists, char)
-	end
-	for _, list in ipairs(lists) do
-		for _, t in ipairs(list:GetChildren()) do
-			if t:IsA("Tool") and string.find(string.lower(t.Name), "chip") then
-				return t
-			end
-		end
-	end
-	return nil
-end
-
-local CHIPS = {
-	"Basic Raid Microchip",
-	"Advanced Raid Microchip",
-	"Flame Chip", "Ice Chip", "Sand Chip", "Dark Chip", "Lightning Chip",
-	"Ghost Chip", "Magma Chip", "Quake Chip", "Bomb Chip", "Spike Chip",
-	"Spring Chip", "Chop Chip", "Smoke Chip", "Blade Chip", "Barrier Chip",
-	"Rubber Chip", "Revive Chip", "Diamond Chip", "Rumble Chip", "Paw Chip",
-	"Gravity Chip", "Phoenix Chip", "Dough Chip",
-}
-
-local function buyChip(chip)
-	if chipInBackpack() then
-		notify("Chip", "Você já tem um chip no inventário.")
-		return true
-	end
-	local data = LocalPlayer:FindFirstChild("Data")
-	local beli = data and data:FindFirstChild("Beli")
-	if beli and beli.Value < 100000 then
-		notify("Chip", "Beli insuficiente (mínimo 100.000).")
-		return false
-	end
-
-	local variants = {
-		function()
-			CommF:InvokeServer("RaidsInfo", "Buy", chip)
-		end,
-		function()
-			CommF:InvokeServer("RaidsInfo", "BuyChip", chip)
-		end,
-		function()
-			CommF:InvokeServer("RaidsInfo", "Buy")
-		end,
-	}
-
-	for _, fn in ipairs(variants) do
-		pcall(fn)
-		for _ = 1, 6 do
-			task.wait(0.25)
-			if chipInBackpack() then
-				notify("Chip", "Comprado: " .. chip)
-				return true
-			end
-		end
-	end
-	notify("Chip", "Falha ao comprar. Vá até o Mysterious Scientist.")
-	return false
-end
-
-local function startRaid(chip, island)
-	if raidActive() then
-		return true
-	end
-	if not chipInBackpack() then
-		notify("Raid", "Sem chip no inventário.")
-		return false
-	end
-
-	local variants = {
-		function()
-			CommF:InvokeServer("RaidsInfo", "Start", chip, island)
-		end,
-		function()
-			CommF:InvokeServer("RaidsInfo", "Start", chip)
-		end,
-		function()
-			CommF:InvokeServer("RaidsInfo", "Start")
-		end,
-	}
-
-	for _, fn in ipairs(variants) do
-		pcall(fn)
-		for _ = 1, 8 do
-			task.wait(0.3)
-			if raidActive() then
-				notify("Raid", "Raid iniciada na ilha " .. tostring(island))
-				return true
-			end
-		end
-	end
-	notify("Raid", "Não foi possível iniciar.")
-	return false
-end
-
-local function raidTarget()
-	local enemies = Workspace:FindFirstChild("Enemies")
-	if not enemies then
-		return nil
-	end
-	local _, hrp = getChar()
-	local best, bestScore
-	for _, mob in ipairs(enemies:GetChildren()) do
-		local mhrp = mob:FindFirstChild("HumanoidRootPart")
-		local hum = mob:FindFirstChildOfClass("Humanoid")
-		if mhrp and hum and hum.Health > 0 then
-			local score = 0
-			if string.find(mob.Name, "Boss") or string.find(mob.Name, "Awakened") then
-				score += 1000
-			end
-			if hrp then
-				score += 2000 - math.min((mhrp.Position - hrp.Position).Magnitude, 2000)
-			end
-			if not bestScore or score > bestScore then
-				best, bestScore = mob, score
-			end
-		end
-	end
-	return best
-end
-
-Library:Section(Raid, "Chip")
-Library:Dropdown(Raid, {
-	Name = "Chip selecionado",
-	Options = CHIPS,
-	Default = Library:Flag("RaidChip", "Basic Raid Microchip"),
-	Flag = "RaidChip",
-})
-Library:Slider(Raid, { Name = "Ilha", Min = 1, Max = 5, Default = Library:Flag("RaidIsland", 1), Increment = 1, Flag = "RaidIsland" })
-Library:Button(Raid, { Name = "Comprar chip", Callback = function()
-	buyChip(Library.Flags.RaidChip)
-end })
-Library:Button(Raid, { Name = "Iniciar raid", Callback = function()
-	startRaid(Library.Flags.RaidChip, Library.Flags.RaidIsland)
-end })
-
-Library:Section(Raid, "Automação")
-Library:Toggle(Raid, { Name = "Auto Comprar Chip", Flag = "AutoBuyChip", Default = Library:Flag("AutoBuyChip", false) })
-Library:Toggle(Raid, { Name = "Auto Start Raid", Flag = "AutoStartRaid", Default = Library:Flag("AutoStartRaid", false) })
-Library:Toggle(Raid, { Name = "Auto Limpar Raid", Description = "Mata mobs e boss da raid", Flag = "AutoClearRaid", Default = Library:Flag("AutoClearRaid", false) })
-Library:Toggle(Raid, { Name = "Auto Sair da Raid", Description = "Sai quando termina", Flag = "AutoLeaveRaid", Default = Library:Flag("AutoLeaveRaid", false) })
-Library:Button(Raid, { Name = "Sair da raid agora", Callback = function()
-	pcall(function()
-		CommF:InvokeServer("RaidsInfo", "Leave")
-	end)
-end })
-
--- QUESTS ESPECIAIS
-local QD = {}
-
-QD.Race = {
-	{ name = "Race V2 (Arowe)", npc = CFrame.new(-2955.9, 27.6, -2520.2), sea = 3 },
-	{ name = "Race V3 (Tort)", npc = CFrame.new(-7332.3, 30.6, 5983.1), sea = 3 },
-	{ name = "Race V4 (Templo)", npc = CFrame.new(-16808.5, 210.5, 573.3), sea = 3 },
-}
-
-QD.Sword = {
-	{ name = "Saber (Saber Expert)", npc = CFrame.new(-1405.0, 29.4, 4.4), boss = "Saber Expert", sea = 1 },
-	{ name = "Dark Blade (Mihawk)", npc = CFrame.new(-1352.9, 46.4, -1420.9), boss = "Mihawk", sea = 1 },
-	{ name = "Canvander (Beautiful Pirate)", npc = CFrame.new(5289.0, 22.7, 590.7), boss = "Beautiful Pirate", sea = 3 },
-	{ name = "Yama (Cursed Skeleton)", npc = CFrame.new(-14215.0, 314.0, 6210.0), boss = "Cursed Skeleton", sea = 3 },
-	{ name = "Tushita (Longma)", npc = CFrame.new(-15008.0, 250.0, 5600.0), boss = "Longma", sea = 3 },
-}
-
-QD.Style = {
-	{ id = "Superhuman", name = "Superhuman", npc = CFrame.new(-2877.0, 23.0, -2850.0), price = 3000000, sea = 2 },
-	{ id = "SharkmanKarate", name = "Sharkman Karate", npc = CFrame.new(-2820.0, 20.0, -6800.0), price = 750000, sea = 3 },
-	{ id = "DeathStep", name = "Death Step", npc = CFrame.new(-2431.0, 21.0, -3470.0), price = 500000, sea = 2 },
-}
-
-local function killBossLoop(boss)
-	local enemies = Workspace:FindFirstChild("Enemies")
-	local mob = enemies and enemies:FindFirstChild(boss)
-	if mob and mob:FindFirstChild("HumanoidRootPart") and mob.Humanoid.Health > 0 then
-		killMob(mob, CFrame.new(0, 28, 8))
-		return true
-	end
-	return false
-end
-
-Library:Section(Quests, "Race")
-for _, entry in ipairs(QD.Race) do
-	Library:Button(Quests, { Name = "TP · " .. entry.name, Callback = function()
-		if SEA < entry.sea then
-			notify("Quest", "Precisa do Sea " .. entry.sea .. ".")
-			return
-		end
-		teleport(entry.npc, Library.Flags.TweenSpeed)
-	end })
-end
-
-Library:Section(Quests, "Espadas")
-Library:Dropdown(Quests, {
-	Name = "Espada alvo",
-	Options = (function()
-		local out = {}
-		for _, e in ipairs(QD.Sword) do
-			if SEA >= e.sea then
-				table.insert(out, e.name)
-			end
-		end
-		return out
-	end)(),
-	Default = Library:Flag("SwordTarget", ""),
-	Flag = "SwordTarget",
-})
-Library:Toggle(Quests, { Name = "Auto Farm da espada", Description = "Mata o boss e pega o drop", Flag = "AutoSword", Default = Library:Flag("AutoSword", false) })
-
-Library:Section(Quests, "Estilos de luta")
-Library:Dropdown(Quests, {
-	Name = "Estilo alvo",
-	Options = (function()
-		local out = {}
-		for _, e in ipairs(QD.Style) do
-			if SEA >= e.sea then
-				table.insert(out, e.name)
-			end
-		end
-		return out
-	end)(),
-	Default = Library:Flag("StyleTarget", ""),
-	Flag = "StyleTarget",
-})
-Library:Button(Quests, { Name = "Comprar estilo", Callback = function()
-	local entry
-	for _, e in ipairs(QD.Style) do
-		if e.name == Library.Flags.StyleTarget then
-			entry = e
-			break
-		end
-	end
-	if not entry then
-		notify("Estilo", "Selecione um estilo.")
-		return
-	end
-	teleport(entry.npc, Library.Flags.TweenSpeed)
-	task.wait(1.2)
-	pcall(function()
-		CommF:InvokeServer("BuyFightingStyle", entry.id)
-	end)
-	notify("Estilo", "Tentativa de compra: " .. entry.name)
-end })
-
-Library:Section(Quests, "Coleta de item")
-Library:Toggle(Quests, { Name = "Auto Coletar Item", Description = "Pega espadas/ferramentas no chão", Flag = "AutoItem", Default = Library:Flag("AutoItem", false) })
-Library:Toggle(Quests, { Name = "ESP Item", Flag = "EspItem", Default = Library:Flag("EspItem", false) })
-
--- PROGRESSÃO
-Library:Section(Stats, "Distribuição de pontos")
-for _, statName in ipairs({ "Melee", "Defense", "Sword", "Gun", "Demon Fruit" }) do
-	Library:Toggle(Stats, { Name = "Auto " .. statName, Flag = "Stat_" .. statName, Default = Library:Flag("Stat_" .. statName, statName == "Melee" or statName == "Defense") })
-end
-Library:Toggle(Stats, { Name = "Auto Stats", Description = "Gasta pontos nos ativos", Flag = "AutoStats", Default = Library:Flag("AutoStats", false) })
-Library:Button(Stats, { Name = "Gastar todos os pontos agora", Callback = function()
-	local data = LocalPlayer:FindFirstChild("Data")
-	local points = data and data:FindFirstChild("Points")
-	if not points then
-		return
-	end
-	while points.Value > 0 do
-		local done = false
-		for _, statName in ipairs({ "Melee", "Defense", "Sword", "Gun", "Demon Fruit" }) do
-			if Library.Flags["Stat_" .. statName] and points.Value > 0 then
-				CommF:InvokeServer("AddPoint", statName, 1)
-				done = true
-				task.wait(0.05)
-			end
-		end
-		if not done then
-			break
-		end
-	end
-	notify("Stats", "Pontos distribuídos.")
-end })
-
-Library:Section(Stats, "Haki")
-Library:Button(Stats, { Name = "Comprar Buso Haki", Callback = function()
-	pcall(function()
-		CommF:InvokeServer("BuyHaki", "Buso")
-	end)
-end })
-Library:Button(Stats, { Name = "Comprar Ken Haki", Callback = function()
-	pcall(function()
-		CommF:InvokeServer("BuyHaki", "Geppo")
-		CommF:InvokeServer("BuyHaki", "Soru")
-	end)
-end })
-
--- VIAGEM
-Library:Section(Travel, "Ilhas")
-local islandHolder = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Travel.Container })
-new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = islandHolder })
-
-local function buildIslands()
-	for _, c in ipairs(islandHolder:GetChildren()) do
-		if c:IsA("TextButton") then
-			c:Destroy()
-		end
-	end
-	local origin = Workspace:FindFirstChild("_WorldOrigin")
-	local locations = origin and origin:FindFirstChild("Locations")
-	if not locations then
-		return
-	end
-	for _, loc in ipairs(locations:GetChildren()) do
-		if loc:IsA("BasePart") and loc.Name ~= "Sea" then
-			local b = new("TextButton", {
-				Size = UDim2.new(1, 0, 0, 28),
-				BackgroundColor3 = Library.Theme.Row,
-				BorderSizePixel = 0,
-				AutoButtonColor = false,
-				Font = Enum.Font.GothamMedium,
-				TextSize = 10,
-				Text = "  " .. loc.Name,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				Parent = islandHolder,
-			})
-			style(b, "BackgroundColor3", "Row")
-			style(b, "TextColor3", "Text")
-			new("UICorner", { CornerRadius = UDim.new(0, 7), Parent = b })
-			connect(b.MouseButton1Click, function()
-				teleport(loc.CFrame * CFrame.new(0, 20, 0), 520)
-			end)
-			connect(b.MouseEnter, function()
-				tween(b, 0.12, { BackgroundColor3 = Library.Theme.Hover })
-			end)
-			connect(b.MouseLeave, function()
-				tween(b, 0.12, { BackgroundColor3 = Library.Theme.Row })
-			end)
-		end
-	end
-end
-buildIslands()
-task.delay(5, buildIslands)
-
-Library:Section(Travel, "Quest")
-Library:Button(Travel, { Name = "Ir ao NPC da quest", Callback = function()
-	local q = resolveQuest()
-	if q then
-		teleport(q.npc)
-	end
-end })
-Library:Button(Travel, { Name = "Ir ao mob da quest", Callback = function()
-	local q = resolveQuest()
-	if q and q.spawns[1] then
+return GGUIwns[1] then
 		teleport(q.spawns[1] + Vector3.new(0, 25, 0))
 	end
 end })
