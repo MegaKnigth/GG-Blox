@@ -37,13 +37,17 @@ local ICONS = {
 }
 
 local DEFAULT_BACKGROUNDS = {
-	{ nome = "Black", arquivo = "black.jpg" },
-	{ nome = "Miku Code", arquivo = "mikucode.jpg" },
+	{ nome = "Aventura", arquivo = "aventura.jpg" },
+	{ nome = "Batman", arquivo = "batman.jpg" },
 	{ nome = "Branco", arquivo = "branco.jpg" },
-	{ nome = "Hollow", arquivo = "hollow.jpg" },
-	{ nome = "Miku Mine", arquivo = "mikumine.jpg" },
+	{ nome = "Hollow Knight", arquivo = "hollowknight.jpg" },
+	{ nome = "Jujutsu", arquivo = "jujutsu.jpg" },
+	{ nome = "Mangá", arquivo = "manga.jpg" },
+	{ nome = "Miku", arquivo = "miku.jpg" },
+	{ nome = "Miku Code", arquivo = "mikucode.jpg" },
 	{ nome = "Re:Zero", arquivo = "rezero.jpg" },
-	{ nome = "Dragon Ball", arquivo = "dragonball.jpg" },
+	{ nome = "Rosa", arquivo = "rosa.jpg" },
+	{ nome = "Tóquio", arquivo = "toquio.jpg" },
 }
 
 -- As 12 cores de tema, camada e texto
@@ -78,7 +82,7 @@ GGUI.State = {
 	TextName = "Branco",
 	TomName = "Preto",
 	Opacity = 5,
-	Background = "Black",
+	Background = "Miku",
 	TabsW = 160,
 	W = DEFAULT_W,
 	H = DEFAULT_H,
@@ -1361,6 +1365,9 @@ function Window:_setupPersonalizar()
 		table.insert(names, b.nome)
 	end
 	table.insert(names, "Nenhum")
+	if not table.find(names, s.Background) then
+		s.Background = names[1]
+	end
 
 	tab:AddSection("Janela")
 	tab:AddSlider({
