@@ -1,9 +1,12 @@
+-- Teste visual da GGUI (somente exibição)
+local GGUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-UI.luau"))()
 
-local GGUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"))()
 local Window = GGUI:MakeWindow({
 	Title = "GG Teste",
 	SubTitle = "exibição",
 	ScriptFolder = "GG Teste",
+	Link = "https://discord.gg/maRUgnPGGj",
+	LinkLabel = "Discord",
 })
 
 Window:NewMinimizer(Enum.KeyCode.RightShift)
@@ -15,67 +18,19 @@ Visual:AddSection("Componentes")
 Visual:AddParagraph("Parágrafo", "Este é um texto de descrição. Ele pode quebrar em várias linhas quando for longo o suficiente para ocupar mais espaço.")
 Visual:AddLabel("Esta é uma linha de texto simples.")
 
-Visual:AddToggle({
-	Name = "Toggle de teste",
-	Default = true,
-	Callback = function(v) print("Toggle:", v) end,
-})
-
-Visual:AddButton({
-	Name = "Botão de teste",
-	Callback = function() print("Botão clicado") end,
-})
-
-Visual:AddSlider({
-	Name = "Slider de teste",
-	Min = 0,
-	Max = 100,
-	Increment = 1,
-	Default = 40,
-	Callback = function(v) print("Slider:", v) end,
-})
-
-Visual:AddDropdown({
-	Name = "Dropdown de teste",
-	Options = {"Opção 1", "Opção 2", "Opção 3"},
-	Default = "Opção 1",
-	Callback = function(v) print("Dropdown:", v) end,
-})
-
-Visual:AddDropdown({
-	Name = "Múltipla escolha",
-	Options = {"Melee", "Sword", "Gun", "Fruit"},
-	Default = {"Melee"},
-	MultiSelect = true,
-	Callback = function(v) print("Múltipla:", v) end,
-})
-
-Visual:AddKeybind({
-	Name = "Tecla de teste",
-	Default = Enum.KeyCode.F,
-	Callback = function(k) print("Tecla:", k.Name) end,
-})
-
-Visual:AddTextBox({
-	Name = "Campo de texto",
-	Default = "digite aqui",
-	Placeholder = "Nome",
-	Callback = function(v) print("Texto:", v) end,
-})
-
-Visual:AddDiscordInvite({
-	Name = "Comunidade de teste",
-	Description = "Card de exemplo",
-	Invite = "https://discord.gg/exemplo",
-})
+Visual:AddToggle({Name = "Toggle de teste", Default = true, Callback = function(v) print("Toggle:", v) end})
+Visual:AddButton({Name = "Botão de teste", Callback = function() print("Botão clicado") end})
+Visual:AddSlider({Name = "Slider de teste", Min = 0, Max = 100, Increment = 1, Default = 40, Callback = function(v) print("Slider:", v) end})
+Visual:AddDropdown({Name = "Dropdown de teste", Options = {"Opção 1", "Opção 2", "Opção 3"}, Default = "Opção 1", Callback = function(v) print("Dropdown:", v) end})
+Visual:AddDropdown({Name = "Múltipla escolha", Options = {"Melee", "Sword", "Gun", "Fruit"}, Default = {"Melee"}, MultiSelect = true, Callback = function(v) print("Múltipla:", v) end})
+Visual:AddKeybind({Name = "Tecla de teste", Default = Enum.KeyCode.F, Callback = function(k) print("Tecla:", k.Name) end})
+Visual:AddTextBox({Name = "Campo de texto", Default = "digite aqui", Placeholder = "Nome", Callback = function(v) print("Texto:", v) end})
 
 -- ===== Aba Ícones =====
 local Icons = Window:MakeTab({"Ícones", "Home"})
 Icons:AddSection("Lucide")
 for _, nome in ipairs({"home", "settings", "user", "check", "x", "chevron-down", "table-cells-split", "rewind"}) do
-	if GGUI:GetIcon(nome) then
-		Icons:AddLabel(nome)
-	end
+	Icons:AddIcon({Name = nome})
 end
 
 -- ===== Notificações e dialog =====
