@@ -1,5 +1,5 @@
 -- Teste visual da GGUI (somente exibição)
-local GGUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-UI.luau"))()
+local GGUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"))()
 
 local Window = GGUI:MakeWindow({
 	Title = "GG Teste",
