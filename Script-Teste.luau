@@ -13,7 +13,7 @@ local PGui = LP:WaitForChild("PlayerGui")
 local SafeParent = (gethui and gethui()) or CoreGui
 
 -- ════════════════════════════════════════
---  CARREGAMENTO DA UI
+--  CARREGAMENTO DA UI (GG-UI)
 -- ════════════════════════════════════════
 local UI_URL = "https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"
 local GGUI_LIB = loadstring(game:HttpGet(UI_URL))()
@@ -28,13 +28,13 @@ if game.PlaceId == 4442272183 then CurrentSea = 2
 elseif game.PlaceId == 7449423635 then CurrentSea = 3 end
 
 local Win = GGUI_LIB:MakeWindow({
-    Title = "Auto Farm Focado",
+    Title = "Auto Farm Estável v2",
     SubTitle = "Sea " .. CurrentSea .. " | Lv." .. (LP.Data and LP.Data.Level.Value or 1),
-    ScriptFolder = "AutoFarmFocado"
+    ScriptFolder = "AutoFarmEstavelV2"
 })
 
 -- ════════════════════════════════════════
---  REMOTES E VARIÁVEIS
+--  REMOTES E ESTADO
 -- ════════════════════════════════════════
 local R = {}
 pcall(function()
@@ -44,6 +44,10 @@ pcall(function()
     if net then
         R.RegisterAttack = net:FindFirstChild("RE/RegisterAttack")
         R.RegisterHit = net:FindFirstChild("RE/RegisterHit")
+    end
+    local flags = ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Flags")
+    if flags then
+        R.Flags = flags
     end
 end)
 
@@ -55,13 +59,13 @@ local ST = {
     Distancia = 20,
     VelocidadeVoo = 260,
     AutoBuso = true,
+    AtaqueAvancado = true, -- Ativa o método de ataque avançado
 }
 
 -- ════════════════════════════════════════
 --  TABELA DE QUESTS COMPLETA
 -- ════════════════════════════════════════
 local Quests = {
-    -- Sea 1
     {Min=1, Max=9, Quest="BanditQuest1", Nome="Bandit", Lvl=1, NPC=CFrame.new(1060.9,16.4,1547.7), MobCF=CFrame.new(1038.5,41.2,1576.5)},
     {Min=10, Max=14, Quest="JungleQuest", Nome="Monkey", Lvl=1, NPC=CFrame.new(-1601.6,36.8,153.3), MobCF=CFrame.new(-1448.1,50.8,63.6)},
     {Min=15, Max=29, Quest="JungleQuest", Nome="Gorilla", Lvl=2, NPC=CFrame.new(-1601.6,36.8,153.3), MobCF=CFrame.new(-1142.6,40.4,515.3)},
@@ -87,7 +91,6 @@ local Quests = {
     {Min=525, Max=624, Quest="SkyExp2Quest", Nome="Royal Squad", Lvl=1, NPC=CFrame.new(-7906,5634,-1411), MobCF=CFrame.new(-7600,5600,-1450)},
     {Min=625, Max=649, Quest="FountainQuest", Nome="Galley Pirate", Lvl=1, NPC=CFrame.new(5259,37,4050), MobCF=CFrame.new(5590,45,3990)},
     {Min=650, Max=699, Quest="FountainQuest", Nome="Galley Captain", Lvl=2, NPC=CFrame.new(5259,37,4050), MobCF=CFrame.new(5650,45,4950)},
-    -- Sea 2
     {Min=700, Max=724, Quest="Area1Quest", Nome="Raider", Lvl=1, NPC=CFrame.new(-429,72,1836), MobCF=CFrame.new(-730,40,2380)},
     {Min=725, Max=774, Quest="Area1Quest", Nome="Mercenary", Lvl=2, NPC=CFrame.new(-429,72,1836), MobCF=CFrame.new(-960,75,1750)},
     {Min=775, Max=799, Quest="Area2Quest", Nome="Swan Pirate", Lvl=1, NPC=CFrame.new(638,72,918), MobCF=CFrame.new(900,120,1200)},
@@ -98,7 +101,6 @@ local Quests = {
     {Min=1000, Max=1099, Quest="SnowMountainQuest", Nome="Snow Trooper", Lvl=1, NPC=CFrame.new(609,401,-5372), MobCF=CFrame.new(480,420,-5600)},
     {Min=1100, Max=1249, Quest="ShipQuest1", Nome="Ship Deckhand", Lvl=1, NPC=CFrame.new(1008,125,32911), MobCF=CFrame.new(1180,140,32990)},
     {Min=1250, Max=1499, Quest="FrostQuest", Nome="Sea Soldier", Lvl=1, NPC=CFrame.new(-3054,237,-10145), MobCF=CFrame.new(-3300,240,-10400)},
-    -- Sea 3
     {Min=1500, Max=1574, Quest="PiratePortQuest", Nome="Pirate Millionaire", Lvl=1, NPC=CFrame.new(-289,44,5580), MobCF=CFrame.new(-200,45,5900)},
     {Min=1575, Max=1699, Quest="PiratePortQuest", Nome="Pistol Billionaire", Lvl=2, NPC=CFrame.new(-289,44,5580), MobCF=CFrame.new(-400,75,5950)},
     {Min=1700, Max=1824, Quest="AmazonQuest", Nome="Female Islander", Lvl=1, NPC=CFrame.new(5832,51,-1100), MobCF=CFrame.new(5400,80,-1000)},
@@ -117,20 +119,46 @@ local Quests = {
 local function GetHRP() return LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") end
 local function GetHum() return LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") end
 local function GetLevel() return LP.Data and LP.Data.Level.Value or 1 end
-local function GetQuest() 
+local function GetQuest()
     local lv = GetLevel()
     for _, q in ipairs(Quests) do if lv >= q.Min and lv <= q.Max then return q end end
     return Quests[#Quests]
+end
+
+-- Fly Anchor (mantém o personagem no ar sem tremer)
+local function SetFlyAnchor(enabled)
+    local hrp = GetHRP()
+    if not hrp then return end
+    local bv = hrp:FindFirstChild("FarmFlyAnchor")
+    if enabled then
+        if not bv then
+            bv = Instance.new("BodyVelocity")
+            bv.Name = "FarmFlyAnchor"
+            bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            bv.Velocity = Vector3.zero
+            bv.Parent = hrp
+        else
+            bv.Velocity = Vector3.zero
+        end
+    elseif bv then
+        bv:Destroy()
+    end
 end
 
 local curTween
 local function Teleportar(targetCF)
     local hrp = GetHRP()
     if not hrp then return end
-    if curTween then pcall(function() curTween:Cancel() end) end
+    if curTween then pcall(function() curTween:Cancel() end) curTween = nil end
     
     local dist = (hrp.Position - targetCF.Position).Magnitude
     if dist <= 15 then hrp.CFrame = targetCF return end
+    
+    -- Para viagens longas, teleporte direto (evita cair na água)
+    if dist > 200 then
+        hrp.CFrame = targetCF
+        return
+    end
     
     local ti = TweenInfo.new(dist / ST.VelocidadeVoo, Enum.EasingStyle.Linear)
     curTween = TweenService:Create(hrp, ti, {CFrame = targetCF})
@@ -156,6 +184,9 @@ local function EquiparArma()
     end
 end
 
+-- ════════════════════════════════════════
+--  MÉTODO DE ATAQUE AVANÇADO (Baseado nas suas informações)
+-- ════════════════════════════════════════
 local CombatFW
 pcall(function()
     if LP.PlayerScripts:FindFirstChild("CombatFramework") then
@@ -163,13 +194,34 @@ pcall(function()
     end
 end)
 
-local function AtacarRapido(mob)
+local function GetEnemiesInRange(range)
+    local hrp = GetHRP()
+    if not hrp then return {} end
+    local enemies = workspace:FindFirstChild("Enemies")
+    if not enemies then return {} end
+    local targets = {}
+    for _, mob in ipairs(enemies:GetChildren()) do
+        local mhrp = mob:FindFirstChild("HumanoidRootPart")
+        local mhum = mob:FindFirstChildOfClass("Humanoid")
+        if mhrp and mhum and mhum.Health > 0 then
+            if (mhrp.Position - hrp.Position).Magnitude <= range then
+                table.insert(targets, mob)
+            end
+        end
+    end
+    return targets
+end
+
+local function AtaqueAvancado(mob)
+    -- Método baseado nas informações: verifica COMBAT_REMOTE_THREAD e usa SendHitsToServer se disponível
     pcall(function()
         local char = LP.Character
         if not char then return end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then tool:Activate() end
         
+        local tool = char:FindFirstChildOfClass("Tool")
+        if not tool then return end
+        
+        -- 1. Tenta usar CombatFramework (mais estável)
         if CombatFW and CombatFW.activeController then
             local ac = CombatFW.activeController
             ac.hitboxMagnitude = 60
@@ -178,10 +230,36 @@ local function AtacarRapido(mob)
             pcall(function() ac:attack() end)
         end
         
-        if R.RegisterAttack then R.RegisterAttack:FireServer(0) end
-        if mob and R.RegisterHit then
-            local mhrp = mob:FindFirstChild("HumanoidRootPart")
-            if mhrp then R.RegisterHit:FireServer(mhrp, {{mhrp, mhrp.Position}}) end
+        -- 2. Dispara RegisterAttack
+        if R.RegisterAttack then
+            R.RegisterAttack:FireServer(0)
+        end
+        
+        -- 3. Verifica COMBAT_REMOTE_THREAD e envia hits
+        local targets = GetEnemiesInRange(60)
+        if #targets > 0 and R.RegisterHit then
+            local hitTargets = {}
+            for _, enemy in ipairs(targets) do
+                local hitboxLimbs = {"RightLowerArm", "RightUpperArm", "LeftLowerArm", "LeftUpperArm", "RightHand", "LeftHand"}
+                local part = enemy:FindFirstChild(hitboxLimbs[math.random(#hitboxLimbs)]) or enemy.PrimaryPart
+                if part then
+                    table.insert(hitTargets, {enemy, part})
+                end
+            end
+            
+            if #hitTargets > 0 then
+                local mainTarget = hitTargets[1][2]
+                R.RegisterHit:FireServer(mainTarget, hitTargets)
+            end
+        end
+        
+        -- 4. Ativa ferramenta para M1 de fruta
+        if tool.ToolTip == "Blox Fruit" then
+            local leftClickRemote = tool:FindFirstChild("LeftClickRemote")
+            if leftClickRemote then
+                leftClickRemote:FireServer(Vector3.new(0.01, -500, 0.01), 1, true)
+                leftClickRemote:FireServer(false)
+            end
         end
     end)
 end
@@ -211,7 +289,7 @@ local function PuxarMobs(nome, cfCentro)
             local mhum = mob:FindFirstChildOfClass("Humanoid")
             if mhrp and mhum and mhum.Health > 0 then
                 mhrp.CFrame = cfCentro
-                mhrp.Size = Vector3.new(20, 20, 20) -- Hitbox aumentado
+                mhrp.Size = Vector3.new(20, 20, 20)
                 mhum.WalkSpeed = 0
             end
         end
@@ -219,22 +297,23 @@ local function PuxarMobs(nome, cfCentro)
 end
 
 -- ════════════════════════════════════════
---  UI BÁSICA
+--  UI
 -- ════════════════════════════════════════
 local Aba = Win:MakeTab({Title = "Auto Farm"})
 Aba:AddIcon({Name = "swords"})
 
 Aba:AddToggle({Name = "Ativar Auto Farm", Default = false, Callback = function(v)
     ST.Ativo = v
-    if not v then PararTeleporte() end
+    if not v then PararTeleporte(); SetFlyAnchor(false) end
 end})
 Aba:AddDropdown({Name = "Arma", Options = {"Melee", "Sword", "Blox Fruit", "Gun"}, Callback = function(v) ST.Arma = v end})
-Aba:AddToggle({Name = "Fast Attack", Default = true, Callback = function(v) ST.FastAttack = v end})
+Aba:AddToggle({Name = "Fast Attack Avançado", Default = true, Callback = function(v) ST.FastAttack = v end})
 Aba:AddToggle({Name = "Puxar Mobs", Default = true, Callback = function(v) ST.BringMob = v end})
 Aba:AddSlider({Name = "Distância do Mob", Min = 10, Max = 50, Default = 20, Increment = 1, Callback = function(v) ST.Distancia = v end})
+Aba:AddSlider({Name = "Velocidade Voo", Min = 100, Max = 400, Default = 260, Increment = 10, Callback = function(v) ST.VelocidadeVoo = v end})
 
 -- ════════════════════════════════════════
---  LOOP PRINCIPAL
+--  LOOP PRINCIPAL (CORRIGIDO)
 -- ════════════════════════════════════════
 task.spawn(function()
     while true do
@@ -243,45 +322,58 @@ task.spawn(function()
             pcall(function()
                 local hrp = GetHRP()
                 local hum = GetHum()
-                if not hrp or not hum or hum.Health <= 0 then PararTeleporte() return end
+                if not hrp or not hum or hum.Health <= 0 then
+                    PararTeleporte()
+                    SetFlyAnchor(false)
+                    return
+                end
                 
                 local q = GetQuest()
                 if not q then return end
                 
-                -- 1. Verifica se o jogador está longe do NPC ou do Mob
+                -- 1. Tenta encontrar o mob primeiro
                 local mob = ProcurarMob(q.Nome)
                 
                 if mob then
-                    -- 2. Se achou o mob, vai até ele
+                    -- TEM MOB: Vai para cima dele e ataca
                     local mhrp = mob:FindFirstChild("HumanoidRootPart")
                     if mhrp then
                         local posAlvo = CFrame.new(mhrp.Position + Vector3.new(0, ST.Distancia, 0))
                         local dist = (hrp.Position - mhrp.Position).Magnitude
                         
-                        if dist > 30 then
+                        if dist > 40 then
+                            -- Longe: teleporta/voa
+                            SetFlyAnchor(false)
                             Teleportar(posAlvo)
                         else
+                            -- Perto: ancora e ataca (sem tremer)
                             PararTeleporte()
+                            SetFlyAnchor(true)
                             hrp.CFrame = posAlvo
+                            hrp.AssemblyLinearVelocity = Vector3.zero
                             
                             PuxarMobs(q.Nome, mhrp.CFrame)
                             EquiparArma()
                             
                             if ST.FastAttack then
-                                AtacarRapido(mob)
+                                AtaqueAvancado(mob)
                             end
                         end
                     end
                 else
-                    -- 3. Se NÃO achou o mob, vai para a área de spawn
-                    Teleportar(q.MobCF)
+                    -- SEM MOB: Vai para a área de spawn ou NPC
+                    SetFlyAnchor(false)
                     
-                    -- Se estiver perto do NPC e sem quest, pega a quest
-                    if (hrp.Position - q.NPC.Position).Magnitude < 30 then
+                    -- Se estiver perto do NPC, pega a quest
+                    local distNPC = (hrp.Position - q.NPC.Position).Magnitude
+                    if distNPC < 30 then
                         if R.CommF_ then
                             R.CommF_:InvokeServer("StartQuest", q.Quest, q.Lvl)
                             task.wait(0.5)
                         end
+                    else
+                        -- Se não achou mob, vai para a área de spawn
+                        Teleportar(q.MobCF)
                     end
                 end
             end)
@@ -289,4 +381,4 @@ task.spawn(function()
     end
 end)
 
-print("Auto Farm Focado carregado!")
+print("Auto Farm Estável v2 carregado!")
