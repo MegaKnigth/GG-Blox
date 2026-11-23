@@ -2,9 +2,7 @@ repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
 local LP = Players.LocalPlayer
@@ -28,9 +26,9 @@ if game.PlaceId == 4442272183 then CurrentSea = 2
 elseif game.PlaceId == 7449423635 then CurrentSea = 3 end
 
 local Win = GGUI_LIB:MakeWindow({
-    Title = "Auto Farm (Hits Contando)",
+    Title = "Auto Farm (Quest Primeiro)",
     SubTitle = "Sea " .. CurrentSea .. " | Lv." .. (LP.Data and LP.Data.Level.Value or 1),
-    ScriptFolder = "AutoFarmHits"
+    ScriptFolder = "AutoFarmQuestPrimeiro"
 })
 
 -- ════════════════════════════════════════
@@ -42,7 +40,6 @@ pcall(function()
     if rf then R.CommF_ = rf:FindFirstChild("CommF_") end
 end)
 
--- CombatFramework (usado para o ataque natural)
 local CombatFW
 pcall(function()
     local cf = LP:FindFirstChild("PlayerScripts") and LP.PlayerScripts:FindFirstChild("CombatFramework")
@@ -52,11 +49,10 @@ end)
 local ST = {
     Ativo = false,
     Arma = "Melee",
-    BringMob = true,
     Distancia = 15,
     VelocidadeVoo = 260,
-    AutoBuso = true,
-    DelayAtaque = 0.35, -- Delay entre ataques (mais alto = mais estável)
+    DelayAtaque = 0.35,
+    QuestAtiva = false, -- Controle interno
 }
 
 -- ════════════════════════════════════════
@@ -122,6 +118,14 @@ local function GetQuest()
     return Quests[#Quests]
 end
 
+-- Verifica se tem quest ativa na GUI
+local function TemQuestAtiva()
+    local main = PGui:FindFirstChild("Main")
+    if not main then return false end
+    local quest = main:FindFirstChild("Quest")
+    return quest and quest.Visible or false
+end
+
 local function SetFlyAnchor(enabled)
     local hrp = GetHRP()
     if not hrp then return end
@@ -180,12 +184,11 @@ local function EquiparArma()
 end
 
 -- ════════════════════════════════════════
---  SISTEMA DE ATAQUE SIMPLES (HITS CONTANDO)
+--  SISTEMA DE ATAQUE
 -- ════════════════════════════════════════
 local ultimoAtaque = 0
 
 local function Atacar()
-    -- Controla o tempo entre ataques
     if tick() - ultimoAtaque < ST.DelayAtaque then
         return
     end
@@ -197,16 +200,13 @@ local function Atacar()
     local tool = char:FindFirstChildOfClass("Tool")
     if not tool then return end
     
-    -- 1. Ativa a ferramenta (isso é o que o jogo conta como hit)
     pcall(function()
         tool:Activate()
     end)
     
-    -- 2. Tenta usar o CombatFramework se disponível (registra o hit naturalmente)
     pcall(function()
         if CombatFW and CombatFW.activeController then
             local ac = CombatFW.activeController
-            -- Não altera hitbox nem timeToNextAttack, apenas deixa o jogo processar
             ac:attack()
         end
     end)
@@ -230,23 +230,6 @@ local function ProcurarMob(nome)
     return nil
 end
 
-local function PuxarMobs(nome, cfCentro)
-    if not ST.BringMob then return end
-    local enemies = workspace:FindFirstChild("Enemies")
-    if not enemies then return end
-    for _, mob in ipairs(enemies:GetChildren()) do
-        if string.find(mob.Name, nome) then
-            local mhrp = mob:FindFirstChild("HumanoidRootPart")
-            local mhum = mob:FindFirstChildOfClass("Humanoid")
-            if mhrp and mhum and mhum.Health > 0 then
-                mhrp.CFrame = cfCentro
-                mhrp.Size = Vector3.new(15, 15, 15) -- Hitbox moderado
-                mhum.WalkSpeed = 0
-            end
-        end
-    end
-end
-
 -- ════════════════════════════════════════
 --  UI
 -- ════════════════════════════════════════
@@ -258,17 +241,17 @@ Aba:AddToggle({Name = "Ativar Auto Farm", Default = false, Callback = function(v
     if not v then PararTeleporte(); SetFlyAnchor(false) end
 end})
 Aba:AddDropdown({Name = "Arma", Options = {"Melee", "Sword", "Blox Fruit", "Gun"}, Callback = function(v) ST.Arma = v end})
-Aba:AddToggle({Name = "Puxar Mobs", Default = true, Callback = function(v) ST.BringMob = v end})
 Aba:AddSlider({Name = "Distância do Mob", Min = 10, Max = 30, Default = 15, Increment = 1, Callback = function(v) ST.Distancia = v end})
 Aba:AddSlider({Name = "Delay entre Ataques", Min = 0.1, Max = 1.0, Default = 0.35, Increment = 0.05, Callback = function(v) ST.DelayAtaque = v end})
 Aba:AddSlider({Name = "Velocidade Voo", Min = 100, Max = 400, Default = 260, Increment = 10, Callback = function(v) ST.VelocidadeVoo = v end})
+Aba:AddLabel({Text = "Status: Aguardando..."}).Name = "StatusLabel"
 
 -- ════════════════════════════════════════
---  LOOP PRINCIPAL
+--  LOOP PRINCIPAL CORRIGIDO (Prioridade: Quest Primeiro)
 -- ════════════════════════════════════════
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        task.wait(0.1)
         if ST.Ativo then
             pcall(function()
                 local hrp = GetHRP()
@@ -282,7 +265,38 @@ task.spawn(function()
                 local q = GetQuest()
                 if not q then return end
                 
-                -- 1. Tenta encontrar o mob
+                -- ═══════════════════════════════
+                --  PASSO 1: VERIFICAR SE TEM QUEST ATIVA
+                -- ═══════════════════════════════
+                local temQuest = TemQuestAtiva()
+                
+                if not temQuest then
+                    -- SEM QUEST: Vai para o NPC pegar a quest
+                    SetFlyAnchor(false)
+                    PararTeleporte()
+                    
+                    local distNPC = (hrp.Position - q.NPC.Position).Magnitude
+                    
+                    if distNPC > 25 then
+                        -- Está longe do NPC: teleporta para ele
+                        Teleportar(q.NPC)
+                    else
+                        -- Está perto do NPC: para e pega a quest
+                        PararTeleporte()
+                        hrp.CFrame = q.NPC
+                        
+                        -- Pede a quest
+                        if R.CommF_ then
+                            R.CommF_:InvokeServer("StartQuest", q.Quest, q.Lvl)
+                            task.wait(0.5)
+                        end
+                    end
+                    return -- Sai do loop para não fazer mais nada neste ciclo
+                end
+                
+                -- ═══════════════════════════════
+                --  PASSO 2: TEM QUEST ATIVA, PROCURA MOB
+                -- ═══════════════════════════════
                 local mob = ProcurarMob(q.Nome)
                 
                 if mob then
@@ -301,28 +315,18 @@ task.spawn(function()
                             hrp.CFrame = posAlvo
                             hrp.AssemblyLinearVelocity = Vector3.zero
                             
-                            PuxarMobs(q.Nome, mhrp.CFrame)
                             EquiparArma()
                             Atacar()
                         end
                     end
                 else
-                    -- SEM MOB: Vai para a área de spawn ou NPC
+                    -- SEM MOB: Vai para a área de spawn
                     SetFlyAnchor(false)
-                    
-                    local distNPC = (hrp.Position - q.NPC.Position).Magnitude
-                    if distNPC < 30 then
-                        if R.CommF_ then
-                            R.CommF_:InvokeServer("StartQuest", q.Quest, q.Lvl)
-                            task.wait(0.5)
-                        end
-                    else
-                        Teleportar(q.MobCF)
-                    end
+                    Teleportar(q.MobCF)
                 end
             end)
         end
     end
 end)
 
-print("Auto Farm (Hits Contando) carregado!")
+print("Auto Farm (Quest Primeiro) carregado!")
