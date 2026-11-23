@@ -754,22 +754,62 @@ local function ClearAllESP()
     end
 end
 
--- ════════════════════════════════════════
---  LOAD GG-UI
--- ════════════════════════════════════════
-loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"))()
+-- ==========================================
+-- [CORREÇÃO] Carregamento seguro da UI para Delta Mobile
+-- ==========================================
+local UI_URL = "https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"
+
+-- 1. Definir função HTTP com timeout para evitar que Delta trave com request() no GitHub
+local function SafeHttpGet(url)
+    local src = nil
+    local ok, err = pcall(function()
+        -- Tentar usar game:HttpGet primeiro (mais estável no Delta)
+        src = game:HttpGet(url, true)
+    end)
+    
+    -- Se falhar ou retornar vazio, tentar request com timeout
+    if not ok or not src or src == "" then
+        local httpFn = syn and syn.request or request or http_request
+        if httpFn then
+            local finished = false
+            task.spawn(function()
+                local reqOk, res = pcall(httpFn, {Url = url, Method = "GET"})
+                if reqOk and res and res.Body then
+                    src = res.Body
+                end
+                finished = true
+            end)
+            local t0 = tick()
+            while not finished and (tick() - t0) < 5 do
+                task.wait(0.1)
+            end
+        end
+    end
+    return src
+end
+
+-- 2. Carregar a UI com proteção
+local uiSource = SafeHttpGet(UI_URL)
+
+if uiSource and uiSource ~= "" then
+    local loadOk, loadErr = pcall(function()
+        loadstring(uiSource)()
+    end)
+    if not loadOk then
+        warn("[BF Script] Falha ao executar GG-Ui: " .. tostring(loadErr))
+    end
+else
+    warn("[BF Script] Falha ao baixar GG-Ui! Verifique sua conexão ou se o link do GitHub expirou.")
+end
+
 task.wait(1.5)
 
-local Win = GGUI:CreateWindow({
-    Title    = "BF Script Pro",
-    SubTitle = "Sea "..CurrentSea.." | Lv."..GetLevel(),
-    Width    = 640,
-    Height   = 430,
-    TabsW    = 155,
-})
-if not Win then
-    warn("[BF Script] GGUI:CreateWindow falhou")
-else
+-- 3. Verificação de segurança: garantir que GGUI existe antes de usar
+if not GGUI or not GGUI.CreateWindow then
+    warn("[BF Script] UI não carregada corretamente. O script não pode continuar sem a interface.")
+    return -- Interrompe a execução para evitar uma série de erros nil
+end
+-- ==========================================
 
 -- ══════════════════════════════════════
 --  TAB: FARM LEVEL
