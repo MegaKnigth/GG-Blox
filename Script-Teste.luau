@@ -1,4 +1,9 @@
-
+--[[
+  Auto Farm Estável — GG-UI
+  Quest/Farm: lógica do gghub (original)
+  Ataque: AttackNoCoolDown intacto
+  Movimento: estável (CFrame longo / tween curto)
+]]
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 task.wait(0.8)
@@ -8,7 +13,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
 local VirtualUser       = game:GetService("VirtualUser")
-local CoreGui           = game:GetService("CoreGui")
 
 local LP   = Players.LocalPlayer
 local Char = LP.Character or LP.CharacterAdded:Wait()
@@ -21,12 +25,10 @@ LP.CharacterAdded:Connect(function(c)
     Hum  = c:WaitForChild("Humanoid")
 end)
 
--- Team
 pcall(function()
     ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
 end)
 
--- Sea
 local PlaceId = game.PlaceId
 local Sea1 = (PlaceId == 2753915549 or PlaceId == 85211729168715)
 local Sea2 = (PlaceId == 4442272183 or PlaceId == 79091703265657)
@@ -39,6 +41,7 @@ _G.AutoLevel    = false
 _G.BringMobs    = true
 _G.SelectWeapon = "Melee"
 local PosMon    = Vector3.zero
+local Sec       = 0.12
 
 -- ====================== REMOTES ======================
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
@@ -67,16 +70,34 @@ local function EquipWeapon(tip)
     end
 end
 
-local function TweenTo(cf)
+-- movimento estável: longo = CFrame, curto = tween
+local function TP(cf)
     local hrp = GetHRP()
-    if not hrp then return end
+    if not hrp or not cf then return end
     local dist = (hrp.Position - cf.Position).Magnitude
-    if dist < 3 then return end
-    local speed = 320
-    local tw = TweenService:Create(hrp, TweenInfo.new(dist / speed, Enum.EasingStyle.Linear), {CFrame = cf})
-    tw:Play()
-    tw.Completed:Wait()
-    hrp.AssemblyLinearVelocity = Vector3.zero
+
+    -- noclip leve
+    for _, p in ipairs(LP.Character:GetDescendants()) do
+        if p:IsA("BasePart") then p.CanCollide = false end
+    end
+
+    if dist > 180 then
+        -- long range / ilha: CFrame direto + zera velocity
+        hrp.CFrame = cf
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        task.wait(0.05)
+    elseif dist > 4 then
+        local speed = 300
+        local tw = TweenService:Create(hrp, TweenInfo.new(dist / speed, Enum.EasingStyle.Linear), {CFrame = cf})
+        tw:Play()
+        tw.Completed:Wait()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    else
+        hrp.CFrame = cf
+        hrp.AssemblyLinearVelocity = Vector3.zero
+    end
 end
 
 local function NoClip(on)
@@ -89,7 +110,7 @@ local function NoClip(on)
     end
 end
 
--- ====================== BRING ======================
+-- ====================== BRING (original) ======================
 local function BringEnemy()
     if not _G.BringMobs then return end
     local enemies = workspace:FindFirstChild("Enemies")
@@ -112,7 +133,7 @@ local function BringEnemy()
     end
 end
 
--- ====================== ATTACK NO COOLDOWN (gghub — intacto) ======================
+-- ====================== ATTACK NO COOLDOWN (intacto) ======================
 local function IsEntityAlive(entity)
     if not entity then return false end
     local humanoid = entity:FindFirstChild("Humanoid")
@@ -140,13 +161,7 @@ function AttackNoCoolDown()
     local character = player.Character
     if not character then return end
 
-    local equippedWeapon = nil
-    for _, item in ipairs(character:GetChildren()) do
-        if item:IsA("Tool") then
-            equippedWeapon = item
-            break
-        end
-    end
+    local equippedWeapon = character:FindFirstChildOfClass("Tool")
     if not equippedWeapon then return end
 
     local enemiesInRange = GetEnemiesInRange(character, 60)
@@ -156,8 +171,8 @@ function AttackNoCoolDown()
     local modules = storage:FindFirstChild("Modules")
     if not modules then return end
 
-    local attackEvent = storage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterAttack")
-    local hitEvent    = storage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterHit")
+    local attackEvent = RegisterAttack
+    local hitEvent    = RegisterHit
     if not attackEvent or not hitEvent then return end
 
     local targets, mainTarget = {}, nil
@@ -176,225 +191,180 @@ function AttackNoCoolDown()
     attackEvent:FireServer(0)
 
     local playerScripts = player:FindFirstChild("PlayerScripts")
-    if not playerScripts then return end
-    local localScript = playerScripts:FindFirstChildOfClass("LocalScript")
-    while not localScript do
-        playerScripts.ChildAdded:Wait()
-        localScript = playerScripts:FindFirstChildOfClass("LocalScript")
-    end
-
-    local hitFunction
-    if getsenv then
-        local success, scriptEnv = pcall(getsenv, localScript)
-        if success and scriptEnv then
-            hitFunction = scriptEnv._G.SendHitsToServer
+    if playerScripts then
+        local localScript = playerScripts:FindFirstChildOfClass("LocalScript")
+        if localScript and getsenv then
+            local ok, env = pcall(getsenv, localScript)
+            if ok and env and env._G and env._G.SendHitsToServer then
+                env._G.SendHitsToServer(mainTarget, targets)
+                return
+            end
         end
     end
 
-    local successFlags, combatRemoteThread = pcall(function()
+    local okFlags, combatRemoteThread = pcall(function()
         return require(modules.Flags).COMBAT_REMOTE_THREAD or false
     end)
-
-    if successFlags and combatRemoteThread and hitFunction then
-        hitFunction(mainTarget, targets)
-    elseif successFlags and not combatRemoteThread then
-        hitEvent:FireServer(mainTarget, targets)
-    else
-        hitEvent:FireServer(mainTarget, targets)
-    end
+    hitEvent:FireServer(mainTarget, targets)
 end
 
--- Heartbeat do ataque
 RunService.Heartbeat:Connect(function()
     pcall(function()
         if not _G.Seriality then return end
         AttackNoCoolDown()
-
-        local Pretool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-        if Pretool and Pretool.ToolTip == "Blox Fruit" then
-            local LeftClickRemote = Pretool:FindFirstChild("LeftClickRemote")
-            if LeftClickRemote then
-                LeftClickRemote:FireServer(Vector3.new(0.01, -500, 0.01), 1, true)
-                LeftClickRemote:FireServer(false)
+        local tool = LP.Character and rec.LP.Character:FindFirstChildOfClass("Tool")
+        if tool and tool.ToolTip == "Blox Fruit" then
+            local left = tool:FindFirstChild("LeftClickRemote")
+            if left then
+                left:FireServer(Vector3.new(0.01, -500, 0.01), 1, true)
+                left:FireServer(false)
             end
         end
     end)
 end)
 
--- Camera shake off
 pcall(function()
-    local CameraShakerR = require(game.ReplicatedStorage.Util.CameraShaker)
-    CameraShakerR:Stop()
+    require(game.ReplicatedStorage.Util.CameraShaker):Stop()
 end)
 
--- ====================== CHECK LEVEL ======================
-local function CheckLevel()
-    local lv = LP.Data.Level.Value
-    local Ms, NameQuest, QuestLv, CFrameQ, CFrameMon
+-- ====================== QUEST DATA (padrão original) ======================
+local function QuestNeta()
+    local a = LP.Data.Level.Value
+    local Mon, Qdata, Qname, NameMon, PosM, PosQ
 
     if Sea1 then
-        if lv <= 9 then
-            Ms, NameQuest, QuestLv = "Bandit", "BanditQuest1", 1
-            CFrameQ = CFrame.new(1060.9, 16.45, 1547.78)
-            CFrameMon = CFrame.new(1038.55, 41.3, 1576.51)
-        elseif lv <= 14 then
-            Ms, NameQuest, QuestLv = "Monkey", "JungleQuest", 1
-            CFrameQ = CFrame.new(-1601.65, 36.85, 153.39)
-            CFrameMon = CFrame.new(-1448.14, 50.85, 63.61)
-        elseif lv <= 29 then
-            Ms, NameQuest, QuestLv = "Gorilla", "JungleQuest", 2
-            CFrameQ = CFrame.new(-1601.65, 36.85, 153.39)
-            CFrameMon = CFrame.new(-1142.65, 40.46, -515.39)
-        elseif lv <= 39 then
-            Ms, NameQuest, QuestLv = "Pirate", "BuggyQuest1", 1
-            CFrameQ = CFrame.new(-1140.18, 4.75, 3827.41)
-            CFrameMon = CFrame.new(-1201.09, 40.63, 3857.60)
-        elseif lv <= 59 then
-            Ms, NameQuest, QuestLv = "Brute", "BuggyQuest1", 2
-            CFrameQ = CFrame.new(-1140.18, 4.75, 3827.41)
-            CFrameMon = CFrame.new(-1387.53, 24.59, 4100.96)
-        elseif lv <= 74 then
-            Ms, NameQuest, QuestLv = "Desert Bandit", "DesertQuest", 1
-            CFrameQ = CFrame.new(896.52, 6.44, 4390.15)
-            CFrameMon = CFrame.new(984.99, 16.11, 4417.91)
-        elseif lv <= 89 then
-            Ms, NameQuest, QuestLv = "Desert Officer", "DesertQuest", 2
-            CFrameQ = CFrame.new(896.52, 6.44, 4390.15)
-            CFrameMon = CFrame.new(1547.15, 14.45, 4381.80)
-        elseif lv <= 99 then
-            Ms, NameQuest, QuestLv = "Snow Bandit", "SnowQuest", 1
-            CFrameQ = CFrame.new(1386.81, 87.27, -1298.36)
-            CFrameMon = CFrame.new(1356.30, 105.77, -1328.24)
-        elseif lv <= 119 then
-            Ms, NameQuest, QuestLv = "Snowman", "SnowQuest", 2
-            CFrameQ = CFrame.new(1386.81, 87.27, -1298.36)
-            CFrameMon = CFrame.new(1218.80, 138.01, -1488.03)
-        elseif lv <= 149 then
-            Ms, NameQuest, QuestLv = "Chief Petty Officer", "MarineQuest2", 1
-            CFrameQ = CFrame.new(-5035.50, 28.68, 4324.18)
-            CFrameMon = CFrame.new(-4931.16, 65.79, 4121.84)
-        elseif lv <= 174 then
-            Ms, NameQuest, QuestLv = "Sky Bandit", "SkyQuest", 1
-            CFrameQ = CFrame.new(-4842.14, 717.70, -2623.05)
-            CFrameMon = CFrame.new(-4955.64, 365.46, -2908.19)
-        elseif lv <= 189 then
-            Ms, NameQuest, QuestLv = "Dark Master", "SkyQuest", 2
-            CFrameQ = CFrame.new(-4842.14, 717.70, -2623.05)
-            CFrameMon = CFrame.new(-5148.17, 439.05, -2332.96)
-        elseif lv <= 209 then
-            Ms, NameQuest, QuestLv = "Prisoner", "PrisonerQuest", 1
-            CFrameQ = CFrame.new(5310.61, 0.35, 474.95)
-            CFrameMon = CFrame.new(4937.32, 0.33, 649.57)
-        elseif lv <= 249 then
-            Ms, NameQuest, QuestLv = "Dangerous Prisoner", "PrisonerQuest", 2
-            CFrameQ = CFrame.new(5310.61, 0.35, 474.95)
-            CFrameMon = CFrame.new(5099.66, 0.35, 1055.76)
-        elseif lv <= 274 then
-            Ms, NameQuest, QuestLv = "Toga Warrior", "ColosseumQuest", 1
-            CFrameQ = CFrame.new(-1577.79, 7.42, -2984.48)
-            CFrameMon = CFrame.new(-1872.52, 49.08, -2913.81)
-        elseif lv <= 299 then
-            Ms, NameQuest, QuestLv = "Gladiator", "ColosseumQuest", 2
-            CFrameQ = CFrame.new(-1577.79, 7.42, -2984.48)
-            CFrameMon = CFrame.new(-1521.37, 81.20, -3066.31)
-        elseif lv <= 324 then
-            Ms, NameQuest, QuestLv = "Military Soldier", "MagmaQuest", 1
-            CFrameQ = CFrame.new(-5316.12, 12.26, 8517.00)
-            CFrameMon = CFrame.new(-5369.00, 61.24, 8556.49)
-        elseif lv <= 374 then
-            Ms, NameQuest, QuestLv = "Military Spy", "MagmaQuest", 2
-            CFrameQ = CFrame.new(-5316.12, 12.26, 8517.00)
-            CFrameMon = CFrame.new(-5787.00, 75.83, 8651.70)
-        elseif lv <= 399 then
-            Ms, NameQuest, QuestLv = "Fishman Warrior", "FishmanQuest", 1
-            CFrameQ = CFrame.new(61122.65, 18.50, 1569.40)
-            CFrameMon = CFrame.new(60844.11, 98.46, 1298.40)
-        elseif lv <= 449 then
-            Ms, NameQuest, QuestLv = "Fishman Commando", "FishmanQuest", 2
-            CFrameQ = CFrame.new(61122.65, 18.50, 1569.40)
-            CFrameMon = CFrame.new(61738.40, 64.21, 1433.84)
-        elseif lv <= 474 then
-            Ms, NameQuest, QuestLv = "God's Guard", "SkyExp1Quest", 1
-            CFrameQ = CFrame.new(-4721.86, 845.30, -1953.85)
-            CFrameMon = CFrame.new(-4628.05, 866.93, -1931.24)
-        elseif lv <= 524 then
-            Ms, NameQuest, QuestLv = "Shanda", "SkyExp1Quest", 2
-            CFrameQ = CFrame.new(-7863.16, 5545.52, -378.42)
-            CFrameMon = CFrame.new(-7685.15, 5601.08, -441.39)
-        elseif lv <= 549 then
-            Ms, NameQuest, QuestLv = "Royal Squad", "SkyExp2Quest", 1
-            CFrameQ = CFrame.new(-7903.38, 5635.99, -1410.92)
-            CFrameMon = CFrame.new(-7654.25, 5637.11, -1407.76)
-        elseif lv <= 624 then
-            Ms, NameQuest, QuestLv = "Royal Soldier", "SkyExp2Quest", 2
-            CFrameQ = CFrame.new(-7903.38, 5635.99, -1410.92)
-            CFrameMon = CFrame.new(-7760.41, 5679.91, -1884.81)
-        elseif lv <= 649 then
-            Ms, NameQuest, QuestLv = "Galley Pirate", "FountainQuest", 1
-            CFrameQ = CFrame.new(5258.28, 38.53, 4050.04)
-            CFrameMon = CFrame.new(5557.17, 152.33, 3998.78)
+        if a <= 9 then
+            Mon, Qdata, Qname, NameMon = "Bandit", 1, "BanditQuest1", "Bandit"
+            PosQ = CFrame.new(1059.37, 15.45, 1550.42)
+            PosM = CFrame.new(1045.96, 27.00, 1560.82)
+        elseif a <= 14 then
+            Mon, Qdata, Qname, NameMon = "Monkey", 1, "JungleQuest", "Monkey"
+            PosQ = CFrame.new(-1598.09, 35.55, 153.38)
+            PosM = CFrame.new(-1448.52, 67.85, 11.47)
+        elseif a <= 29 then
+            Mon, Qdata, Qname, NameMon = "Gorilla", 2, "JungleQuest", "Gorilla"
+            PosQ = CFrame.new(-1598.09, 35.55, 153.38)
+            PosM = CFrame.new(-1129.88, 40.46, -525.42)
+        elseif a <= 39 then
+            Mon, Qdata, Qname, NameMon = "Pirate", 1, "BuggyQuest1", "Pirate"
+            PosQ = CFrame.new(-1141.07, 4.10, 3831.55)
+            PosM = CFrame.new(-1103.51, 13.75, 3896.09)
+        elseif a <= 59 then
+            Mon, Qdata, Qname, NameMon = "Brute", 2, "BuggyQuest1", "Brute"
+            PosQ = CFrame.new(-1141.07, 4.10, 3831.55)
+            PosM = CFrame.new(-1140.08, 14.81, 4322.92)
+        elseif a <= 74 then
+            Mon, Qdata, Qname, NameMon = "Desert Bandit", 1, "DesertQuest", "Desert Bandit"
+            PosQ = CFrame.new(894.49, 5.14, 4392.43)
+            PosM = CFrame.new(924.80, 6.45, 4481.59)
+        elseif a <= 89 then
+            Mon, Qdata, Qname, NameMon = "Desert Officer", 2, "DesertQuest", "Desert Officer"
+            PosQ = CFrame.new(894.49, 5.14, 4392.43)
+            PosM = CFrame.new(1608.28, 8.61, 4371.01)
+        elseif a <= 99 then
+            Mon, Qdata, Qname, NameMon = "Snow Bandit", 1, "SnowQuest", "Snow Bandit"
+            PosQ = CFrame.new(1389.74, 88.15, -1298.91)
+            PosM = CFrame.new(1356.30, 105.77, -1328.24)
+        elseif a <= 119 then
+            Mon, Qdata, Qname, NameMon = "Snowman", 2, "SnowQuest", "Snowman"
+            PosQ = CFrame.new(1389.74, 88.15, -1298.91)
+            PosM = CFrame.new(1218.80, 138.01, -1488.03)
+        elseif a <= 149 then
+            Mon, Qdata, Qname, NameMon = "Chief Petty Officer", 1, "MarineQuest2", "Chief Petty Officer"
+            PosQ = CFrame.new(-5035.50, 28.68, 4324.18)
+            PosM = CFrame.new(-4931.16, 65.79, 4121.84)
+        elseif a <= 174 then
+            Mon, Qdata, Qname, NameMon = "Sky Bandit", 1, "SkyQuest", "Sky Bandit"
+            PosQ = CFrame.new(-4842.14, 717.70, -2623.05)
+            PosM = CFrame.new(-4955.64, 365.46, -2908.19)
+        elseif a <= 189 then
+            Mon, Qdata, Qname, NameMon = "Dark Master", 2, "SkyQuest", "Dark Master"
+            PosQ = CFrame.new(-4842.14, 717.70, -2623.05)
+            PosM = CFrame.new(-5148.17, 439.05, -2332.96)
+        elseif a <= 209 then
+            Mon, Qdata, Qname, NameMon = "Prisoner", 1, "PrisonerQuest", "Prisoner"
+            PosQ = CFrame.new(5310.61, 0.35, 474.95)
+            PosM = CFrame.new(4937.32, 0.33, 649.57)
+        elseif a <= 249 then
+            Mon, Qdata, Qname, NameMon = "Dangerous Prisoner", 2, "PrisonerQuest", "Dangerous Prisoner"
+            PosQ = CFrame.new(5310.61, 0.35, 474.95)
+            PosM = CFrame.new(5099.66, 0.35, 1055.76)
+        elseif a <= 274 then
+            Mon, Qdata, Qname, NameMon = "Toga Warrior", 1, "ColosseumQuest", "Toga Warrior"
+            PosQ = CFrame.new(-1577.79, 7.42, -2984.48)
+            PosM = CFrame.new(-1872.52, 49.08, -2913.81)
+        elseif a <= 299 then
+            Mon, Qdata, Qname, NameMon = "Gladiator", 2, "ColosseumQuest", "Gladiator"
+            PosQ = CFrame.new(-1577.79, 7.42, -2984.48)
+            PosM = CFrame.new(-1521.37, 81.20, -3066.31)
+        elseif a <= 324 then
+            Mon, Qdata, Qname, NameMon = "Military Soldier", 1, "MagmaQuest", "Military Soldier"
+            PosQ = CFrame.new(-5316.12, 12.26, 8517.00)
+            PosM = CFrame.new(-5369.00, 61.24, 8556.49)
+        elseif a <= 374 then
+            Mon, Qdata, Qname, NameMon = "Military Spy", 2, "MagmaQuest", "Military Spy"
+            PosQ = CFrame.new(-5316.12, 12.26, 8517.00)
+            PosM = CFrame.new(-5787.00, 75.83, 8651.70)
+        elseif a <= 399 then
+            Mon, Qdata, Qname, NameMon = "Fishman Warrior", 1, "FishmanQuest", "Fishman Warrior"
+            PosQ = CFrame.new(61122.65, 18.50, 1569.40)
+            PosM = CFrame.new(60844.11, 98.46, 1298.40)
+        elseif a <= 449 then
+            Mon, Qdata, Qname, NameMon = "Fishman Commando", 2, "FishmanQuest", "Fishman Commando"
+            PosQ = CFrame.new(61122.65, 18.50, 1569.40)
+            PosM = CFrame.new(61738.40, 64.21, 1433.84)
+        elseif a <= 474 then
+            Mon, Qdata, Qname, NameMon = "God's Guard", 1, "SkyExp1Quest", "God's Guard"
+            PosQ = CFrame.new(-4721.86, 845.30, -1953.85)
+            PosM = CFrame.new(-4628.05, 866.93, -1931.24)
+        elseif a <= 524 then
+            Mon, Qdata, Qname, NameMon = "Shanda", 2, "SkyExp1Quest", "Shanda"
+            PosQ = CFrame.new(-7863.16, 5545.52, -378.42)
+            PosM = CFrame.new(-7685.15, 5601.08, -441.39)
+        elseif a <= 549 then
+            Mon, Qdata, Qname, NameMon = "Royal Squad", 1, "SkyExp2Quest", "Royal Squad"
+            PosQ = CFrame.new(-7903.38, 5635.99, -1410.92)
+            PosM = CFrame.new(-7654.25, 5637.11, -1407.76)
+        elseif a <= 624 then
+            Mon, Qdata, Qname, NameMon = "Royal Soldier", 2, "SkyExp2Quest", "Royal Soldier"
+            PosQ = CFrame.new(-7903.38, 5635.99, -1410.92)
+            PosM = CFrame.new(-7760.41, 5679.91, -1884.81)
+        elseif a <= 649 then
+            Mon, Qdata, Qname, NameMon = "Galley Pirate", 1, "FountainQuest", "Galley Pirate"
+            PosQ = CFrame.new(5258.28, 38.53, 4050.04)
+            PosM = CFrame.new(5557.17, 152.33, 3998.78)
         else
-            Ms, NameQuest, QuestLv = "Galley Captain", "FountainQuest", 2
-            CFrameQ = CFrame.new(5258.28, 38.53, 4050.04)
-            CFrameMon = CFrame.new(5677.68, 92.79, 4966.63)
+            Mon, Qdata, Qname, NameMon = "Galley Captain", 2, "FountainQuest", "Galley Captain"
+            PosQ = CFrame.new(5258.28, 38.53, 4050.04)
+            PosM = CFrame.new(5677.68, 92.79, 4966.63)
         end
     elseif Sea2 then
-        if lv <= 724 then
-            Ms, NameQuest, QuestLv = "Raider", "Area1Quest", 1
-            CFrameQ = CFrame.new(-427.73, 73, 1835.94)
-            CFrameMon = CFrame.new(68.87, 93.64, 2429.68)
-        elseif lv <= 774 then
-            Ms, NameQuest, QuestLv = "Mercenary", "Area1Quest", 2
-            CFrameQ = CFrame.new(-427.73, 73, 1835.94)
-            CFrameMon = CFrame.new(-864.85, 122.47, 1453.15)
-        elseif lv <= 799 then
-            Ms, NameQuest, QuestLv = "Swan Pirate", "Area2Quest", 1
-            CFrameQ = CFrame.new(635.61, 73.10, 917.81)
-            CFrameMon = CFrame.new(1065.37, 137.64, 1324.38)
-        elseif lv <= 874 then
-            Ms, NameQuest, QuestLv = "Factory Staff", "Area2Quest", 2
-            CFrameQ = CFrame.new(635.61, 73.10, 917.81)
-            CFrameMon = CFrame.new(533.22, 128.47, 355.63)
+        if a <= 724 then
+            Mon, Qdata, Qname, NameMon = "Raider", 1, "Area1Quest", "Raider"
+            PosQ = CFrame.new(-427.73, 73, 1835.94)
+            PosM = CFrame.new(68.87, 93.64, 2429.68)
+        elseif a <= 774 then
+            Mon, Qdata, Qname, NameMon = "Mercenary", 2, "Area1Quest", "Mercenary"
+            PosQ = CFrame.new(-427.73, 73, 1835.94)
+            PosM = CFrame.new(-864.85, 122.47, 1453.15)
         else
-            Ms, NameQuest, QuestLv = "Marine Lieutenant", "MarineQuest3", 1
-            CFrameQ = CFrame.new(-2440.99, 73.04, -3217.71)
-            CFrameMon = CFrame.new(-2489.26, 84.61, -3151.88)
+            Mon, Qdata, Qname, NameMon = "Swan Pirate", 1, "Area2Quest", "Swan Pirate"
+            PosQ = CFrame.new(635.61, 73.10, 917.81)
+            PosM = CFrame.new(1065.37, 137.64, 1324.38)
         end
-    else -- Sea3
-        Ms, NameQuest, QuestLv = "Pirate Millionaire", "PiratePortQuest", 1
-        CFrameQ = CFrame.new(-450, 84, 5660)
-        CFrameMon = CFrame.new(-450, 84, 5660)
+    else
+        Mon, Qdata, Qname, NameMon = "Pirate Millionaire", 1, "PiratePortQuest", "Pirate Millionaire"
+        PosQ = CFrame.new(-450, 84, 5660)
+        PosM = CFrame.new(-450, 84, 5660)
     end
 
-    return Ms, NameQuest, QuestLv, CFrameQ, CFrameMon
+    -- [1]Mon [2]Qdata [3]Qname [4]PosM [5]NameMon [6]PosQ
+    return { Mon, Qdata, Qname, PosM, NameMon, PosQ }
 end
 
--- ====================== QUEST CHECK ======================
-local function TemQuestCorreta(NameQuest)
-    local ok, result = pcall(function()
-        local main = LP.PlayerGui:FindFirstChild("Main")
-        if not main then return false end
-        local q = main:FindFirstChild("Quest")
-        if not q or not q.Visible then return false end
-
-        local title = q:FindFirstChild("Title") or q:FindFirstChild("QuestTitle")
-        if title and title:IsA("TextLabel") then
-            local t = string.lower(title.Text or "")
-            local key = string.lower((NameQuest or ""):gsub("Quest", ""))
-            if key ~= "" and string.find(t, key) then
-                return true
-            end
-            -- qualquer quest ativa = não pega outra
-            return true
-        end
-        return q.Visible
-    end)
-    return ok and result
-end
-
--- ====================== AUTO LEVEL LOOP ======================
+-- ====================== FARM LEVEL (lógica original) ======================
 task.spawn(function()
-    while task.wait(0.12) do
+    while task.wait(Sec) do
         if not _G.AutoLevel then
             NoClip(false)
             continue
@@ -404,55 +374,60 @@ task.spawn(function()
             NoClip(true)
             EquipWeapon(_G.SelectWeapon)
 
-            local Ms, NameQuest, QuestLv, CFrameQ, CFrameMon = CheckLevel()
-            if not Ms then return end
+            local q = QuestNeta()
+            local Mon, Qdata, Qname, PosM, NameMon, PosQ = q[1], q[2], q[3], q[4], q[5], q[6]
 
-            local temQuest = TemQuestCorreta(NameQuest)
+            local questGui = LP.PlayerGui.Main.Quest
+            local questTitle = ""
+            pcall(function()
+                questTitle = questGui.Container.QuestTitle.Title.Text
+            end)
 
-            -- só vai no NPC se NÃO tiver quest
-            if not temQuest then
-                local hrp = GetHRP()
-                if hrp and (hrp.Position - CFrameQ.Position).Magnitude > 12 then
-                    TweenTo(CFrameQ * CFrame.new(0, 3, 0))
-                end
-                task.wait(0.25)
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", NameQuest, QuestLv)
-                task.wait(0.45)
-                return
+            -- se tem quest mas não é a do mob atual → abandona (igual original)
+            if questGui.Visible and not string.find(questTitle, NameMon) then
+                ReplicatedStorage.Remotes.CommF_:InvokeServer("AbandonQuest")
+                task.wait(0.3)
             end
 
-            -- tem quest → fica no mob
-            local target = nil
-            local enemies = workspace:FindFirstChild("Enemies")
-            if enemies then
-                for _, v in ipairs(enemies:GetChildren()) do
-                    if v.Name == Ms
-                        and v:FindFirstChild("Humanoid")
-                        and v.Humanoid.Health > 0
-                        and v:FindFirstChild("HumanoidRootPart") then
-                        target = v
-                        break
-                    end
-                end
-            end
-
-            if target then
-                local mhrp = target.HumanoidRootPart
-                PosMon = mhrp.Position
-                BringEnemy()
-
-                local above = mhrp.CFrame * CFrame.new(0, 25, 0)
+            if not questGui.Visible then
+                -- sem quest → vai no NPC e pega
+                TP(PosQ)
                 local hrp = GetHRP()
-                if hrp then
-                    if (hrp.Position - above.Position).Magnitude > 8 then
-                        TweenTo(above)
-                    else
-                        hrp.CFrame = above
-                        hrp.AssemblyLinearVelocity = Vector3.zero
-                    end
+                if hrp and (hrp.Position - PosQ.Position).Magnitude <= 8 then
+                    ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", Qname, Qdata)
+                    task.wait(0.4)
                 end
             else
-                TweenTo(CFrameMon * CFrame.new(0, 10, 0))
+                -- tem quest certa → farm
+                local enemies = workspace:FindFirstChild("Enemies")
+                local target = nil
+                if enemies then
+                    for _, v in ipairs(enemies:GetChildren()) do
+                        if v.Name == Mon and IsEntityAlive(v) and v:FindFirstChild("HumanoidRootPart") then
+                            target = v
+                            break
+                        end
+                    end
+                end
+
+                if target then
+                    local mhrp = target.HumanoidRootPart
+                    PosMon = mhrp.Position
+                    BringEnemy()
+                    local above = mhrp.CFrame * CFrame.new(0, 25, 0)
+                    local hrp = GetHRP()
+                    if hrp then
+                        if (hrp.Position - above.Position).Magnitude > 10 then
+                            TP(above)
+                        else
+                            hrp.CFrame = above
+                            hrp.AssemblyLinearVelocity = Vector3.zero
+                        end
+                    end
+                else
+                    -- sem mob → vai pro spawn da área
+                    TP(PosM * CFrame.new(0, 10, 0))
+                end
             end
         end)
     end
@@ -478,19 +453,17 @@ local TabCfg  = Win:MakeTab({ Title = "Config" })
 
 TabFarm:AddToggle({
     Title = "Auto Level",
-    Description = "Farm automático de level + quest",
+    Description = "Farm level (lógica original gghub)",
     Default = false,
     Callback = function(v)
         _G.AutoLevel = v
-        if v then
-            _G.Seriality = true
-        end
+        if v then _G.Seriality = true end
     end
 })
 
 TabFarm:AddToggle({
     Title = "Seriality (Ataque)",
-    Description = "AttackNoCoolDown — RegisterAttack + RegisterHit",
+    Description = "AttackNoCoolDown",
     Default = false,
     Callback = function(v)
         _G.Seriality = v
@@ -499,7 +472,7 @@ TabFarm:AddToggle({
 
 TabFarm:AddToggle({
     Title = "Bring Mobs",
-    Description = "Puxa mobs pro mesmo ponto",
+    Description = "Puxa mobs",
     Default = true,
     Callback = function(v)
         _G.BringMobs = v
@@ -508,7 +481,6 @@ TabFarm:AddToggle({
 
 TabCfg:AddDropdown({
     Title = "Arma",
-    Description = "Tipo de tool",
     Options = {"Melee", "Sword", "Blox Fruit"},
     Default = "Melee",
     Callback = function(v)
@@ -524,4 +496,4 @@ TabCfg:AddButton({
     end
 })
 
-print("[Auto Farm Estável] carregado — GG-UI + AttackNoCoolDown + quest fix")
+print("[Auto Farm Estável] original quest logic + stable TP")
