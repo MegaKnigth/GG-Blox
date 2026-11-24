@@ -26,8 +26,8 @@ local LIMITS = {
 }
 
 local TIME = {
-	Hover = 0.2, Fast = 0.15, Normal = 0.25, Tab = 0.45, Drop = 0.2,
-	Slider = 0.3, Minimize = 0.25, NotifyIn = 0.35, NotifyOut = 0.8, Dialog = 0.3,
+	Hover = 0.2, Fast = 0.15, Normal = 0.25, Tab = 0.35, Drop = 0.18,
+	Slider = 0.3, Minimize = 0.3, NotifyIn = 0.35, NotifyOut = 0.6, Dialog = 0.3,
 }
 
 local ICONS = {
@@ -172,6 +172,40 @@ local function fire(cb, ...)
 		if not ok then
 			warn("[GGUI] erro em callback: " .. tostring(err))
 		end
+	end)
+end
+
+-- Executa um callback; se falhar, o elemento pisca em vermelho e mostra aviso
+local function fireFrom(frame, titleLabel, cb, ...)
+	if type(cb) ~= "function" then
+		return
+	end
+	local args = table.pack(...)
+	task.spawn(function()
+		local ok, err = pcall(cb, table.unpack(args, 1, args.n))
+		if ok then
+			return
+		end
+		warn("[GGUI] erro em callback: " .. tostring(err))
+		if not frame or not frame.Parent then
+			return
+		end
+		local old = frame.BackgroundColor3
+		tween(frame, { BackgroundColor3 = Color3.fromRGB(120, 30, 30) }, 0.15)
+		if titleLabel and titleLabel.Parent then
+			local oldText = titleLabel.Text
+			titleLabel.Text = "Erro no callback"
+			task.delay(1.2, function()
+				if titleLabel.Parent then
+					titleLabel.Text = oldText
+				end
+			end)
+		end
+		task.delay(1.2, function()
+			if frame.Parent then
+				tween(frame, { BackgroundColor3 = old }, 0.3)
+			end
+		end)
 	end)
 end
 
@@ -352,7 +386,7 @@ Comp.NewCallback = Comp.AddCallback
 
 function Comp:_emit(...)
 	for _, f in ipairs(self._cbs) do
-		fire(f, ...)
+		fireFrom(self.Frame, self._title, f, ...)
 	end
 end
 
@@ -516,6 +550,7 @@ function GGUI:MakeWindow(cfg)
 	win.Shrunk = false
 	win.SquareAlways = false
 	win.Keybind = nil
+	win.OnClose = cfg.OnClose
 
 	GGUI:_loadSettings(win)
 	GGUI:_refreshTheme()
@@ -631,19 +666,13 @@ function GGUI:MakeWindow(cfg)
 		Text = "",
 		AutoButtonColor = false,
 	}, win.TopBar)
-	local barH = reg(new("Frame", {
-		Size = UDim2.fromOffset(12, 2),
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BorderSizePixel = 0,
-	}, minBtn), "BackgroundColor3", "Icons")
-	local barV = reg(new("Frame", {
-		Size = UDim2.fromOffset(2, 12),
-		Position = UDim2.new(0.5, 0, 0.5, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		BorderSizePixel = 0,
-		Visible = false,
-	}, minBtn), "BackgroundColor3", "Icons")
+	-- o "–" é o ícone Lucide "minus"; o "+" é o mesmo ícone girado 90° por cima
+	local barH = GGUI:IconImage(minBtn, "minus", 16)
+	local barV = GGUI:IconImage(minBtn, "minus", 16)
+	if barV then
+		barV.Rotation = 90
+		barV.Visible = false
+	end
 	minBtn.Activated:Connect(function()
 		win:MinimizeButton()
 	end)
@@ -652,7 +681,7 @@ function GGUI:MakeWindow(cfg)
 		win:MinimizeButton()
 	end)
 	closeBtn.Activated:Connect(function()
-		win:Destroy()
+		win:_requestClose()
 	end)
 	draggable(win.TopBar, win.Main, win)
 
@@ -779,10 +808,14 @@ function Window:MinimizeButton()
 	self.Shrunk = collapsed
 	local inner = { self.Sidebar, self.Content, self.Divider, self.Grip }
 	if collapsed then
-		for _, o in ipairs(inner) do
-			o.Visible = false
-		end
 		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, TOPBAR_H) }, TIME.Minimize)
+		task.delay(TIME.Minimize, function()
+			if self.Shrunk then
+				for _, o in ipairs(inner) do
+					o.Visible = false
+				end
+			end
+		end)
 	else
 		tween(self.Main, { Size = UDim2.fromOffset(GGUI.State.W, GGUI.State.H) }, TIME.Minimize)
 		task.delay(TIME.Minimize, function()
@@ -847,6 +880,20 @@ function Window:Destroy()
 			table.remove(GGUI.Windows, i)
 			break
 		end
+	end
+end
+
+function Window:_requestClose()
+	if self.OnClose then
+		local ok, err = pcall(self.OnClose, function()
+			self:Destroy()
+		end)
+		if not ok then
+			warn("[GGUI] erro em OnClose: " .. tostring(err))
+			self:Destroy()
+		end
+	else
+		self:Destroy()
 	end
 end
 
@@ -990,6 +1037,8 @@ function Window:Notify(cfg)
 	local title = cfg.Title or cfg.Name or cfg[1] or "Aviso"
 	local content = cfg.Content or cfg.Text or cfg[2] or ""
 	local icon = cfg.Icon or cfg.Image or cfg[3] or self.NotifyIcon
+	local actions = cfg.Actions
+	local hasActions = type(actions) == "table" and #actions > 0
 	local dur = tonumber(cfg.Duration or cfg.Countdown or cfg.Time or cfg[4]) or 5
 
 	if not self.NotifyHolder then
@@ -1011,7 +1060,7 @@ function Window:Notify(cfg)
 
 	self._notifyN = (self._notifyN or 0) + 1
 	local wrap = new("Frame", {
-		Size = UDim2.new(1, 0, 0, 64),
+		Size = UDim2.new(1, 0, 0, hasActions and 100 or 64),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		LayoutOrder = self._notifyN,
@@ -1052,25 +1101,6 @@ function Window:Notify(cfg)
 		TextTruncate = Enum.TextTruncate.None,
 	}, "TextDark")
 
-	-- barra de contagem regressiva
-	local cd = reg(new("Frame", {
-		Position = UDim2.new(0, 0, 1, -3),
-		Size = UDim2.new(1, 0, 0, 3),
-		BorderSizePixel = 0,
-	}, card), "BackgroundColor3", "Primary")
-	corner(cd, 2)
-
-	-- clique para fechar
-	local hit = new("TextButton", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = "",
-		AutoButtonColor = false,
-	}, card)
-
-	tween(card, { Position = UDim2.fromScale(0, 0) }, TIME.NotifyIn)
-	tween(cd, { Size = UDim2.new(0, 0, 0, 3) }, dur, Enum.EasingStyle.Linear)
-
 	local closed = false
 	local function close()
 		if closed then
@@ -1082,8 +1112,61 @@ function Window:Notify(cfg)
 			wrap:Destroy()
 		end)
 	end
-	hit.Activated:Connect(close)
-	task.delay(dur, close)
+
+	if hasActions then
+		-- sem contagem: fica na tela até o usuário escolher uma ação
+		local row = new("Frame", {
+			Position = UDim2.new(0, 8, 1, -36),
+			Size = UDim2.new(1, -16, 0, 28),
+			BackgroundTransparency = 1,
+		}, card)
+		new("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}, row)
+		for i, a in ipairs(actions) do
+			local b = reg(new("TextButton", {
+				Size = UDim2.new(0, 0, 1, 0),
+				AutomaticSize = Enum.AutomaticSize.X,
+				Text = tostring(a.Title or a.Name or a[1] or "OK"),
+				Font = Enum.Font.GothamMedium,
+				TextSize = 12,
+				AutoButtonColor = false,
+				LayoutOrder = i,
+			}, row), "BackgroundColor3", a.Primary and "Primary" or "Stroke")
+			reg(b, "TextColor3", "Text")
+			corner(b, 6)
+			new("UIPadding", {
+				PaddingLeft = UDim.new(0, 10),
+				PaddingRight = UDim.new(0, 10),
+			}, b)
+			local cb = a.Callback or a[2]
+			b.Activated:Connect(function()
+				close()
+				fire(cb)
+			end)
+		end
+	else
+		local cd = reg(new("Frame", {
+			Position = UDim2.new(0, 0, 1, -3),
+			Size = UDim2.new(1, 0, 0, 3),
+			BorderSizePixel = 0,
+		}, card), "BackgroundColor3", "Primary")
+		corner(cd, 2)
+		local hit = new("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+		}, card)
+		tween(cd, { Size = UDim2.new(0, 0, 0, 3) }, dur, Enum.EasingStyle.Linear)
+		hit.Activated:Connect(close)
+		task.delay(dur, close)
+	end
+
+	tween(card, { Position = UDim2.fromScale(0, 0) }, TIME.NotifyIn)
 	return { Close = close }
 end
 
@@ -1487,17 +1570,27 @@ function Window:_setupPersonalizar()
 	end)
 
 	tab:AddSection("Restaurar")
+	local function resetar()
+		s.Base = "Darker"
+		s.Tone = 20
+		s.TextName = "Branco"
+		s.TomName = "Preto"
+		s.Opacity = 5
+		GGUI:_applyAll()
+		win:SetTomOpacity(5)
+		win:_save()
+	end
 	tab:AddButton({
 		Name = "Restaurar padrão",
 		Callback = function()
-			s.Base = "Darker"
-			s.Tone = 20
-			s.TextName = "Branco"
-			s.TomName = "Preto"
-			s.Opacity = 5
-			GGUI:_applyAll()
-			win:SetTomOpacity(5)
-			win:_save()
+			win:Notify({
+				Title = "Restaurar padrão?",
+				Content = "Cores, tom, texto e opacidade voltam ao padrão.",
+				Actions = {
+					{ Title = "Sim", Primary = true, Callback = resetar },
+					{ Title = "Não" },
+				},
+			})
 		end,
 	})
 
@@ -1707,7 +1800,7 @@ function Tab:AddToggle(cfg)
 
 	-- Gold chama o callback na criação com o valor inicial
 	if cb then
-		fire(cb, value)
+		obj:_emit(value)
 	end
 	return obj
 end
@@ -1938,7 +2031,7 @@ function Tab:AddSlider(cfg)
 	end
 
 	if cb then
-		fire(cb, value)
+		obj:_emit(value)
 	end
 	return obj
 end
@@ -2019,6 +2112,7 @@ function Tab:AddDropdown(cfg)
 	}, body)
 	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }, body)
 	local bscale = new("UIScale", { Scale = win.Scale.Scale }, body)
+	reg(body, "ScrollBarImageColor3", "Primary")
 
 	local search = reg(new("TextBox", {
 		Size = UDim2.new(1, 0, 0, 26),
@@ -2060,6 +2154,7 @@ function Tab:AddDropdown(cfg)
 			local b = buttons[o]
 			if b then
 				b.BackgroundColor3 = selected[o] and T("Primary") or T("Stroke")
+				b.TextTransparency = selected[o] and 0 or 0.4
 			end
 		end
 	end
@@ -2081,7 +2176,7 @@ function Tab:AddDropdown(cfg)
 	local function place()
 		local sc = win.Scale.Scale
 		bscale.Scale = sc
-		local h = math.min(#order * 33 + 40, 230)
+		local h = math.min(#order * 33 + 40, 205)
 		body.Position = UDim2.fromOffset(head.AbsolutePosition.X, head.AbsolutePosition.Y + head.AbsoluteSize.Y + 4)
 		body.Size = UDim2.fromOffset(head.AbsoluteSize.X / sc, h / sc)
 	end
