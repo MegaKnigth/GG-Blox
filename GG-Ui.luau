@@ -40,7 +40,7 @@ local DEFAULT_BACKGROUNDS = {
 	{ nome = "Aventura", arquivo = "aventura.jpg" },
 	{ nome = "Batman", arquivo = "batman.jpg" },
 	{ nome = "Branco", arquivo = "branco.jpg" },
-	{ nome = "Hollow Knight", arquivo = "hollow.jpg" },
+	{ nome = "Hollow Knight", arquivo = "hollowknight.jpg" },
 	{ nome = "Jujutsu", arquivo = "jujutsu.jpg" },
 	{ nome = "Mangá", arquivo = "manga.jpg" },
 	{ nome = "Miku", arquivo = "miku.jpg" },
@@ -677,9 +677,6 @@ function GGUI:MakeWindow(cfg)
 		win:MinimizeButton()
 	end)
 	win.MinBtn = { Vert = barV }
-	minBtn.Activated:Connect(function()
-		win:MinimizeButton()
-	end)
 	closeBtn.Activated:Connect(function()
 		win:_requestClose()
 	end)
@@ -2176,7 +2173,8 @@ function Tab:AddDropdown(cfg)
 	local function place()
 		local sc = win.Scale.Scale
 		bscale.Scale = sc
-		local h = math.min(#order * 33 + 40, 205)
+		local visibleOptions = math.min(#order, 5)
+		local h = 26 + (visibleOptions * 30) + (visibleOptions * 3) + 12
 		body.Position = UDim2.fromOffset(head.AbsolutePosition.X, head.AbsolutePosition.Y + head.AbsoluteSize.Y + 4)
 		body.Size = UDim2.fromOffset(head.AbsoluteSize.X / sc, h / sc)
 	end
