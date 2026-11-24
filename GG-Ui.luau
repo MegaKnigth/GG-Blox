@@ -40,7 +40,7 @@ local DEFAULT_BACKGROUNDS = {
 	{ nome = "Aventura", arquivo = "aventura.jpg" },
 	{ nome = "Batman", arquivo = "batman.jpg" },
 	{ nome = "Branco", arquivo = "branco.jpg" },
-	{ nome = "Hollow Knight", arquivo = "hollowknight.jpg" },
+	{ nome = "Hollow Knight", arquivo = "hollow.jpg" },
 	{ nome = "Jujutsu", arquivo = "jujutsu.jpg" },
 	{ nome = "Mangá", arquivo = "manga.jpg" },
 	{ nome = "Miku", arquivo = "miku.jpg" },
