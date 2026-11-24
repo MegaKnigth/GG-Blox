@@ -1,9 +1,9 @@
 --[[
-  Auto Farm — só lógica dos opensource
-  Movimento: Part (Banana) + BodyClip (Relz)
-  Farm: loop Relz + fallback EnemySpawns/ReplicatedStorage (Banana)
-  Ataque: AttackNoCoolDown (Banana)
-  UI: GG-UI
+  Fontes (não inventado):
+  - Quest: Banana v301 / v311 / v313 + ramo "if not Quest then _tp(PosQ) wait 2 se <=10 StartQuest"
+  - Abandon: só se quest ATIVA e título não bate (Banana)
+  - Movimento longo: PartTele Relz (Banana Part limita 200 studs e reseta)
+  - Ataque: AttackNoCoolDown Banana
 ]]
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
@@ -13,9 +13,8 @@ local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
-local VirtualUser       = game:GetService("VirtualUser")
 
-local LP  = Players.LocalPlayer
+local LP = Players.LocalPlayer
 local Char, Humanoid, HumanoidRootPart
 
 local function SetupCharacter(c)
@@ -42,89 +41,38 @@ local World2 = (PlaceId == 4442272183 or PlaceId == 79091703265657)
 local World3 = (PlaceId == 7449423635 or PlaceId == 100117331123089)
 local CurrentSea = World1 and 1 or World2 and 2 or World3 and 3 or 1
 
--- state (nomes dos hubs)
 _G.Seriality      = false
 _G.AutoFarmLevel  = false
 _G.BringMob       = true
 _G.SelectWeapon   = "Melee"
-_G.SelectedWeapon = "Melee"
 _G.FarmDistance   = 25
 _G.PlayerTweenSpeed = 300
 _G.StopTween      = false
 
-local PosMon = CFrame.new()
 local Mon, LevelQuest, NameQuest, NameMon, CFrameQuest, CFrameMon
+local PosMon = CFrame.new()
 local Pos = CFrame.new(0, 25, 0)
-local shouldTween = false
-getgenv().OnFarm = false
+local isTeleporting = false
+local Sec = 0.15
 
--- ====================== PART (Banana) ======================
-local Part = Instance.new("Part")
-Part.Size = Vector3.new(1, 1, 1)
-Part.Name = "Rip_Indra"
-Part.Anchored = true
-Part.CanCollide = false
-Part.CanTouch = false
-Part.Transparency = 1
-Part.Parent = workspace
-
-do
-    local old = workspace:FindFirstChild(Part.Name)
-    if old and old ~= Part then old:Destroy() end
-end
-
-task.spawn(function()
-    while task.wait() do
-        if Part and Part.Parent == workspace then
-            getgenv().OnFarm = shouldTween and true or false
-        else
-            getgenv().OnFarm = false
-        end
-    end
-end)
-
-task.spawn(function()
-    while not (LP.Character and LP.Character.PrimaryPart) do task.wait() end
-    Part.CFrame = LP.Character.PrimaryPart.CFrame
-    while task.wait() do
-        pcall(function()
-            if getgenv().OnFarm then
-                local PrimaryPart = LP.Character and LP.Character.PrimaryPart
-                if Part and Part.Parent == workspace and PrimaryPart then
-                    if (PrimaryPart.Position - Part.Position).Magnitude <= 200 then
-                        PrimaryPart.CFrame = CFrame.new(Part.Position)
-                    else
-                        Part.CFrame = PrimaryPart.CFrame
-                    end
-                end
-                if LP.Character then
-                    for _, child in pairs(LP.Character:GetChildren()) do
-                        if child:IsA("BasePart") then child.CanCollide = false end
-                    end
-                end
-            end
-        end)
-    end
-end)
-
--- FarmDistance offset (Relz)
+-- FarmDistance (Relz)
 task.spawn(function()
     while task.wait() do
         Pos = CFrame.new(0, _G.FarmDistance or 25, 0)
     end
 end)
 
--- BodyClip + noclip enquanto AutoFarmLevel (Relz)
+-- BodyClip + noclip no farm (Relz)
 task.spawn(function()
     while task.wait() do
         pcall(function()
-            if _G.AutoFarmLevel then
-                if HumanoidRootPart and not HumanoidRootPart:FindFirstChild("BodyClip") then
-                    local Noclip = Instance.new("BodyVelocity")
-                    Noclip.Name = "BodyClip"
-                    Noclip.Parent = HumanoidRootPart
-                    Noclip.MaxForce = Vector3.new(100000, 100000, 100000)
-                    Noclip.Velocity = Vector3.new(0, 0, 0)
+            if _G.AutoFarmLevel and HumanoidRootPart then
+                if not HumanoidRootPart:FindFirstChild("BodyClip") then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Name = "BodyClip"
+                    bv.MaxForce = Vector3.new(100000, 100000, 100000)
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    bv.Parent = HumanoidRootPart
                 end
                 if Char then
                     for _, v in pairs(Char:GetDescendants()) do
@@ -140,54 +88,116 @@ task.spawn(function()
     end
 end)
 
--- ====================== _tp (Banana, Part) ======================
-local function _tp(target)
-    local cFrame3
-    if typeof(target) == "Vector3" then
-        cFrame3 = CFrame.new(target)
-    elseif typeof(target) == "CFrame" then
-        cFrame3 = target
-    else
-        cFrame3 = target and target.CFrame
-    end
-    if not cFrame3 then return end
-    if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return end
-
-    local hrp = LP.Character.HumanoidRootPart
-    local Magnitude = (cFrame3.Position - hrp.Position).Magnitude
-    local speed = (Magnitude <= 15 and 180 or (_G.PlayerTweenSpeed or 300))
-    local tweenInfo = TweenInfo.new(Magnitude / speed, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(Part, tweenInfo, { CFrame = CFrame.new(cFrame3.Position) })
-
-    if LP.Character.Humanoid.Sit then
-        Part.CFrame = CFrame.new(Part.Position.X, cFrame3.Y, Part.Position.Z)
+-- ====================== TweenPlayer (Relz PartTele) ======================
+local function TweenPlayer(dest)
+    if not Char or not Humanoid or Humanoid.Health <= 0 or not HumanoidRootPart or not dest then return end
+    local Distance = (dest.Position - HumanoidRootPart.Position).Magnitude
+    if Distance < 3 then
+        HumanoidRootPart.CFrame = dest
+        return
     end
 
-    shouldTween = true
-    tween:Play()
-    task.spawn(function()
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
-            if shouldTween then
-                task.wait(0.1)
-            else
-                tween:Cancel()
-                break
+    local PartTele = Char:FindFirstChild("PartTele")
+    if not PartTele then
+        PartTele = Instance.new("Part")
+        PartTele.Size = Vector3.new(10, 1, 10)
+        PartTele.Name = "PartTele"
+        PartTele.Anchored = true
+        PartTele.Transparency = 1
+        PartTele.CanCollide = false
+        PartTele.CFrame = HumanoidRootPart.CFrame
+        PartTele.Parent = Char
+        PartTele:GetPropertyChangedSignal("CFrame"):Connect(function()
+            if not isTeleporting then return end
+            task.wait()
+            if Char and Char:FindFirstChild("HumanoidRootPart") then
+                Char.HumanoidRootPart.CFrame = PartTele.CFrame
+                Char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
             end
-        end
-        getgenv().OnFarm = true
-    end)
-    return tween
+        end)
+    end
+
+    isTeleporting = true
+    local tw = TweenService:Create(
+        PartTele,
+        TweenInfo.new(Distance / (_G.PlayerTweenSpeed or 300), Enum.EasingStyle.Linear),
+        { CFrame = dest }
+    )
+    tw:Play()
+    tw.Completed:Wait()
+    isTeleporting = false
+    if HumanoidRootPart then
+        HumanoidRootPart.CFrame = dest
+        HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+    end
 end
 
-local function StopTween(state)
-    if not state then
-        _G.StopTween = true
-        shouldTween = false
-        if HumanoidRootPart and HumanoidRootPart:FindFirstChild("BodyClip") then
-            HumanoidRootPart.BodyClip:Destroy()
-        end
-        _G.StopTween = false
+local function StopTween()
+    _G.StopTween = true
+    isTeleporting = false
+    if Char and Char:FindFirstChild("PartTele") then
+        Char.PartTele:Destroy()
     end
+    if HumanoidRootPart and HumanoidRootPart:FindFirstChild("BodyClip") then
+        HumanoidRootPart.BodyClip:Destroy()
+    end
+    _G.StopTween = false
+end
+
+-- ====================== QUEST HELPERS (Banana v301 / v305 / v311 / v313) ======================
+local function HasQuestVisible()
+    local tracked = LP.PlayerGui:FindFirstChild("TrackedQuestFrame")
+    if tracked then
+        local frame = tracked:FindFirstChild("Frame")
+        if frame and tracked.Enabled and frame.Visible then
+            return true
+        end
+    end
+    local main = LP.PlayerGui:FindFirstChild("Main")
+    local q = main and main:FindFirstChild("Quest")
+    return q and q.Visible == true
+end
+
+local function GetQuestTitle()
+    local tracked = LP.PlayerGui:FindFirstChild("TrackedQuestFrame")
+    if tracked then
+        local frame = tracked:FindFirstChild("Frame")
+        if frame and frame.Visible then
+            local header = frame:FindFirstChild("header")
+            local label = header and header:FindFirstChild("textLabel")
+            if label and label:IsA("TextLabel") and label.Text ~= "" then
+                return tostring(label.Text)
+            end
+        end
+    end
+    local ok, text = pcall(function()
+        return LP.PlayerGui.Main.Quest.Container.QuestTitle.Title.Text
+    end)
+    if ok and text then return tostring(text) end
+    return ""
+end
+
+-- v311: tem quest E título contém NameMon
+local function HasCorrectQuest(nameMon)
+    if not nameMon or not HasQuestVisible() then return false end
+    local title = GetQuestTitle()
+    if title == "" then return false end
+    return string.find(string.lower(title), string.lower(nameMon), 1, true) ~= nil
+end
+
+-- v313: StartQuest + espera até 3s o título bater
+local function StartQuestWait(qname, qdata, nameMon)
+    if HasCorrectQuest(nameMon) then return true end
+    local ok = pcall(function()
+        Remotes.CommF_:InvokeServer("StartQuest", qname, qdata)
+    end)
+    if not ok then return false end
+    local deadline = os.clock() + 3
+    repeat
+        if HasCorrectQuest(nameMon) then return true end
+        task.wait(0.25)
+    until os.clock() >= deadline
+    return HasCorrectQuest(nameMon)
 end
 
 -- ====================== EQUIP / BRING ======================
@@ -212,52 +222,41 @@ local function BringEnemy()
     for _, child in ipairs(Enemies:GetChildren()) do
         local hum = child:FindFirstChildOfClass("Humanoid")
         local hrp = child:FindFirstChild("HumanoidRootPart")
-        if hum and hrp and hum.Health > 0 then
-            if (hrp.Position - pivot).Magnitude <= 350 then
-                hrp.CFrame = CFrame.new(pivot)
-                hrp.CanCollide = false
-                hum.WalkSpeed = 0
-                hum.JumpPower = 0
-                pcall(function()
-                    if sethiddenproperty then
-                        sethiddenproperty(LP, "SimulationRadius", math.huge)
-                    end
-                end)
-            end
+        if hum and hrp and hum.Health > 0 and (hrp.Position - pivot).Magnitude <= 350 then
+            hrp.CFrame = CFrame.new(pivot)
+            hrp.CanCollide = false
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            pcall(function()
+                if sethiddenproperty then sethiddenproperty(LP, "SimulationRadius", math.huge) end
+            end)
         end
     end
 end
 
--- ====================== ATTACK (Banana AttackNoCoolDown) ======================
+-- ====================== ATTACK (Banana) ======================
 local function IsAlive(e)
     local h = e and e:FindFirstChild("Humanoid")
     return h and h.Health > 0
 end
 
 function AttackNoCoolDown()
-    if not Char then return end
-    local tool = Char:FindFirstChildOfClass("Tool")
-    if not tool then return end
-
+    if not Char or not Char:FindFirstChildOfClass("Tool") then return end
     local targets, mainTarget = {}, nil
     local pos = Char:GetPivot().Position
     for _, enemy in ipairs(Enemies:GetChildren()) do
         local hrp = enemy:FindFirstChild("HumanoidRootPart")
-        if hrp and IsAlive(enemy) and not enemy:GetAttribute("IsBoat") then
-            if (hrp.Position - pos).Magnitude <= 60 then
-                local limbs = {"RightLowerArm","RightUpperArm","LeftLowerArm","LeftUpperArm","RightHand","LeftHand"}
-                local part = enemy:FindFirstChild(limbs[math.random(#limbs)]) or enemy.PrimaryPart or hrp
-                if part then
-                    table.insert(targets, {enemy, part})
-                    mainTarget = part
-                end
+        if hrp and IsAlive(enemy) and not enemy:GetAttribute("IsBoat") and (hrp.Position - pos).Magnitude <= 60 then
+            local limbs = {"RightLowerArm","RightUpperArm","LeftLowerArm","LeftUpperArm","RightHand","LeftHand"}
+            local part = enemy:FindFirstChild(limbs[math.random(#limbs)]) or enemy.PrimaryPart or hrp
+            if part then
+                table.insert(targets, {enemy, part})
+                mainTarget = part
             end
         end
     end
     if not mainTarget then return end
-
     RegisterAttack:FireServer(0)
-
     local hitFn
     if getsenv then
         local ps = LP:FindFirstChild("PlayerScripts")
@@ -292,12 +291,10 @@ RunService.Heartbeat:Connect(function()
     end)
 end)
 
-pcall(function()
-    require(ReplicatedStorage.Util.CameraShaker):Stop()
-end)
+pcall(function() require(ReplicatedStorage.Util.CameraShaker):Stop() end)
 
--- ====================== CHECKQUEST (Relz — dados iguais) ======================
-function CheckQuest()
+-- ====================== CHECKQUEST (dados Relz/Banana) ======================
+local function CheckQuest()
     local MyLevel = LP.Data.Level.Value
     if World1 then
         if MyLevel <= 9 then
@@ -328,82 +325,10 @@ function CheckQuest()
             Mon, LevelQuest, NameQuest, NameMon = "Desert Officer", 2, "DesertQuest", "Desert Officer"
             CFrameQuest = CFrame.new(894.488647, 5.14000702, 4392.43359)
             CFrameMon   = CFrame.new(1608.2822265625, 8.614224433898926, 4371.00732421875)
-        elseif MyLevel <= 99 then
+        else
             Mon, LevelQuest, NameQuest, NameMon = "Snow Bandit", 1, "SnowQuest", "Snow Bandit"
             CFrameQuest = CFrame.new(1389.74451, 88.1519318, -1298.90796)
             CFrameMon   = CFrame.new(1354.347900390625, 87.27277374267578, -1393.946533203125)
-        elseif MyLevel <= 119 then
-            Mon, LevelQuest, NameQuest, NameMon = "Snowman", 2, "SnowQuest", "Snowman"
-            CFrameQuest = CFrame.new(1389.74451, 88.1519318, -1298.90796)
-            CFrameMon   = CFrame.new(1201.6412353515625, 144.57958984375, -1550.0670166015625)
-        elseif MyLevel <= 149 then
-            Mon, LevelQuest, NameQuest, NameMon = "Chief Petty Officer", 1, "MarineQuest2", "Chief Petty Officer"
-            CFrameQuest = CFrame.new(-5039.58643, 27.3500385, 4324.68018)
-            CFrameMon   = CFrame.new(-4881.23095703125, 22.65204429626465, 4273.75244140625)
-        elseif MyLevel <= 174 then
-            Mon, LevelQuest, NameQuest, NameMon = "Sky Bandit", 1, "SkyQuest", "Sky Bandit"
-            CFrameQuest = CFrame.new(-4839.53027, 716.368591, -2619.44165)
-            CFrameMon   = CFrame.new(-4953.20703125, 295.74420166015625, -2899.22900390625)
-        elseif MyLevel <= 189 then
-            Mon, LevelQuest, NameQuest, NameMon = "Dark Master", 2, "SkyQuest", "Dark Master"
-            CFrameQuest = CFrame.new(-4839.53027, 716.368591, -2619.44165)
-            CFrameMon   = CFrame.new(-5259.8447265625, 391.3976745605469, -2229.035400390625)
-        elseif MyLevel <= 209 then
-            Mon, LevelQuest, NameQuest, NameMon = "Prisoner", 1, "PrisonerQuest", "Prisoner"
-            CFrameQuest = CFrame.new(5308.93115, 1.65517521, 475.120514)
-            CFrameMon   = CFrame.new(5098.9736328125, -0.3204058110713959, 474.2373352050781)
-        elseif MyLevel <= 249 then
-            Mon, LevelQuest, NameQuest, NameMon = "Dangerous Prisoner", 2, "PrisonerQuest", "Dangerous Prisoner"
-            CFrameQuest = CFrame.new(5308.93115, 1.65517521, 475.120514)
-            CFrameMon   = CFrame.new(5654.5634765625, 15.633401870727539, 866.2991943359375)
-        elseif MyLevel <= 274 then
-            Mon, LevelQuest, NameQuest, NameMon = "Toga Warrior", 1, "ColosseumQuest", "Toga Warrior"
-            CFrameQuest = CFrame.new(-1580.04663, 6.35000277, -2986.47534)
-            CFrameMon   = CFrame.new(-1820.21484375, 51.68385696411133, -2740.6650390625)
-        elseif MyLevel <= 299 then
-            Mon, LevelQuest, NameQuest, NameMon = "Gladiator", 2, "ColosseumQuest", "Gladiator"
-            CFrameQuest = CFrame.new(-1580.04663, 6.35000277, -2986.47534)
-            CFrameMon   = CFrame.new(-1292.838134765625, 56.380882263183594, -3339.031494140625)
-        elseif MyLevel <= 324 then
-            Mon, LevelQuest, NameQuest, NameMon = "Military Soldier", 1, "MagmaQuest", "Military Soldier"
-            CFrameQuest = CFrame.new(-5313.37012, 10.9500084, 8515.29395)
-            CFrameMon   = CFrame.new(-5411.16455078125, 11.081554412841797, 8454.29296875)
-        elseif MyLevel <= 374 then
-            Mon, LevelQuest, NameQuest, NameMon = "Military Spy", 2, "MagmaQuest", "Military Spy"
-            CFrameQuest = CFrame.new(-5313.37012, 10.9500084, 8515.29395)
-            CFrameMon   = CFrame.new(-5802.8681640625, 86.26241302490234, 8828.859375)
-        elseif MyLevel <= 399 then
-            Mon, LevelQuest, NameQuest, NameMon = "Fishman Warrior", 1, "FishmanQuest", "Fishman Warrior"
-            CFrameQuest = CFrame.new(61122.65234375, 18.497442245483, 1569.3997802734)
-            CFrameMon   = CFrame.new(60878.30078125, 18.482830047607422, 1543.7574462890625)
-        elseif MyLevel <= 449 then
-            Mon, LevelQuest, NameQuest, NameMon = "Fishman Commando", 2, "FishmanQuest", "Fishman Commando"
-            CFrameQuest = CFrame.new(61122.65234375, 18.497442245483, 1569.3997802734)
-            CFrameMon   = CFrame.new(61922.6328125, 18.482830047607422, 1493.934326171875)
-        elseif MyLevel <= 474 then
-            Mon, LevelQuest, NameQuest, NameMon = "God's Guard", 1, "SkyExp1Quest", "God's Guard"
-            CFrameQuest = CFrame.new(-4721.88867, 843.874695, -1949.96643)
-            CFrameMon   = CFrame.new(-4710.04296875, 845.2769775390625, -1927.3079833984375)
-        elseif MyLevel <= 524 then
-            Mon, LevelQuest, NameQuest, NameMon = "Shanda", 2, "SkyExp1Quest", "Shanda"
-            CFrameQuest = CFrame.new(-7859.09814, 5544.19043, -381.476196)
-            CFrameMon   = CFrame.new(-7678.48974609375, 5566.40380859375, -497.2156066894531)
-        elseif MyLevel <= 549 then
-            Mon, LevelQuest, NameQuest, NameMon = "Royal Squad", 1, "SkyExp2Quest", "Royal Squad"
-            CFrameQuest = CFrame.new(-7906.81592, 5634.6626, -1411.99194)
-            CFrameMon   = CFrame.new(-7624.25244140625, 5658.13330078125, -1467.354248046875)
-        elseif MyLevel <= 624 then
-            Mon, LevelQuest, NameQuest, NameMon = "Royal Soldier", 2, "SkyExp2Quest", "Royal Soldier"
-            CFrameQuest = CFrame.new(-7906.81592, 5634.6626, -1411.99194)
-            CFrameMon   = CFrame.new(-7836.75341796875, 5645.6640625, -1790.6236572265625)
-        elseif MyLevel <= 649 then
-            Mon, LevelQuest, NameQuest, NameMon = "Galley Pirate", 1, "FountainQuest", "Galley Pirate"
-            CFrameQuest = CFrame.new(5259.81982, 37.3500175, 4050.0293)
-            CFrameMon   = CFrame.new(5551.02197265625, 78.90135192871094, 3930.412841796875)
-        else
-            Mon, LevelQuest, NameQuest, NameMon = "Galley Captain", 2, "FountainQuest", "Galley Captain"
-            CFrameQuest = CFrame.new(5259.81982, 37.3500175, 4050.0293)
-            CFrameMon   = CFrame.new(5441.95166015625, 42.50205993652344, 4950.09375)
         end
     elseif World2 then
         if MyLevel <= 724 then
@@ -426,79 +351,86 @@ function CheckQuest()
     end
 end
 
--- ====================== AttackTarget (Relz) ======================
+-- ====================== AttackTarget (Relz shape, TweenPlayer Relz) ======================
 local function AttackTarget(v, bring, stateFn)
     repeat
         task.wait()
         if stateFn and not stateFn() then return end
         if not v or not v.Parent or not IsAlive(v) or not v:FindFirstChild("HumanoidRootPart") then return end
         EquipWeapon(_G.SelectWeapon)
-        _tp(v.HumanoidRootPart.CFrame * Pos)
+        TweenPlayer(v.HumanoidRootPart.CFrame * Pos)
         if bring then
             PosMon = v.HumanoidRootPart.CFrame
             BringEnemy()
         end
-    until not v or not v.Parent or not IsAlive(v) or _G.StopTween == true or (stateFn and not stateFn())
+    until not v or not v.Parent or not IsAlive(v) or _G.StopTween or (stateFn and not stateFn())
 end
 
--- ====================== AUTO FARM LEVEL (Relz loop + Banana fallback) ======================
+-- ====================== FARM LOOP (Banana order) ======================
 task.spawn(function()
-    while task.wait(0.2) do
-        if not _G.AutoFarmLevel then
-            shouldTween = false
-            continue
-        end
+    while task.wait(Sec) do
+        if not _G.AutoFarmLevel then continue end
         pcall(function()
+            if not HumanoidRootPart then return end
             CheckQuest()
-            local QuestTitle = ""
-            pcall(function()
-                QuestTitle = LP.PlayerGui.Main.Quest.Container.QuestTitle.Title.Text
-            end)
 
-            if not string.find(QuestTitle, NameMon) then
+            -- Banana: se quest VISÍVEL mas título errado → abandon
+            if HasQuestVisible() and not HasCorrectQuest(NameMon) then
                 Remotes.CommF_:InvokeServer("AbandonQuest")
+                task.wait(0.2)
+                return
             end
 
-            if LP.PlayerGui.Main.Quest.Visible == false then
-                Remotes.CommF_:InvokeServer("StartQuest", NameQuest, LevelQuest)
-            elseif LP.PlayerGui.Main.Quest.Visible == true then
-                if Enemies:FindFirstChild(Mon) then
-                    for _, v in pairs(Enemies:GetChildren()) do
-                        if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                            if v.Name == Mon then
-                                AttackTarget(v, true, function()
-                                    return _G.AutoFarmLevel
-                                end)
-                            end
-                        end
+            -- Banana: se NÃO tem quest correta → vai no NPC, espera, StartQuest
+            if not HasCorrectQuest(NameMon) then
+                if CFrameQuest then
+                    TweenPlayer(CFrameQuest)
+                    task.wait(2)
+                    if (HumanoidRootPart.Position - CFrameQuest.Position).Magnitude <= 10 then
+                        StartQuestWait(NameQuest, LevelQuest, NameMon)
                     end
                 else
-                    -- Banana: ReplicatedStorage
-                    local found = false
-                    for _, v in pairs(ReplicatedStorage:GetChildren()) do
-                        if string.find(v.Name, Mon) and v:FindFirstChild("HumanoidRootPart") and IsAlive(v) then
-                            _tp(v.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0))
-                            found = true
-                            break
-                        end
+                    StartQuestWait(NameQuest, LevelQuest, NameMon)
+                end
+                return
+            end
+
+            -- tem quest certa → farm (Relz/Banana)
+            local target = nil
+            for _, v in pairs(Enemies:GetChildren()) do
+                if v.Name == Mon and IsAlive(v) and v:FindFirstChild("HumanoidRootPart") then
+                    target = v
+                    break
+                end
+            end
+
+            if target then
+                AttackTarget(target, true, function() return _G.AutoFarmLevel end)
+            else
+                -- Banana fallback: ReplicatedStorage
+                local found = false
+                for _, v in pairs(ReplicatedStorage:GetChildren()) do
+                    if string.find(v.Name, Mon) and v:FindFirstChild("HumanoidRootPart") and IsAlive(v) then
+                        TweenPlayer(v.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0))
+                        found = true
+                        break
                     end
-                    -- Banana: EnemySpawns
-                    if not found then
-                        local spawns = workspace:FindFirstChild("_WorldOrigin")
-                        spawns = spawns and spawns:FindFirstChild("EnemySpawns")
-                        if spawns then
-                            for _, v1 in pairs(spawns:GetChildren()) do
-                                if string.find(v1.Name, Mon) then
-                                    _tp(v1.CFrame * CFrame.new(0, 20, 0))
-                                    found = true
-                                    break
-                                end
+                end
+                if not found then
+                    local origin = workspace:FindFirstChild("_WorldOrigin")
+                    local spawns = origin and origin:FindFirstChild("EnemySpawns")
+                    if spawns then
+                        for _, s in pairs(spawns:GetChildren()) do
+                            if string.find(s.Name, Mon) then
+                                TweenPlayer(s.CFrame * CFrame.new(0, 20, 0))
+                                found = true
+                                break
                             end
                         end
                     end
-                    if not found and CFrameMon then
-                        _tp(CFrameMon)
-                    end
+                end
+                if not found and CFrameMon then
+                    TweenPlayer(CFrameMon)
                 end
             end
         end)
@@ -526,12 +458,7 @@ TabFarm:AddToggle({
     Default = false,
     Callback = function(v)
         _G.AutoFarmLevel = v
-        if v then
-            _G.Seriality = true
-        else
-            StopTween(false)
-            shouldTween = false
-        end
+        if v then _G.Seriality = true else StopTween() end
     end
 })
 
@@ -553,9 +480,8 @@ TabCfg:AddDropdown({
     Default = "Melee",
     Callback = function(v)
         _G.SelectWeapon = v
-        _G.SelectedWeapon = v
         EquipWeapon(v)
     end
 })
 
-print("[Auto Farm] Banana Part + Relz farm loop + Banana attack")
+print("[Auto Farm] Banana quest flow + Relz PartTele")
