@@ -39,9 +39,9 @@ _G.FarmDistance     = 25
 _G.PlayerTweenSpeed = 300
 
 local Mon, LevelQuest, NameQuest, NameMon, CFrameQuest, CFrameMon
-local PosMon  = nil
-local Pos     = CFrame.new(0, 25, 0)
-local Sec     = 0.15
+local PosMon = nil
+local Pos    = CFrame.new(0, 25, 0)
+local Sec    = 0.15
 
 task.spawn(function()
     while task.wait() do
@@ -76,17 +76,23 @@ end)
 
 -- ════════════════════════════════════════
 --  TWEEN PLAYER
---  FIX: o tween rodava assíncrono e o loop principal
---  chamava TweenPlayer de novo antes do anterior
---  terminar, gerando dois tweens disputando o HRP.
---  Solução: flag tweenRunning impede nova chamada
---  enquanto o tween atual não completou ou foi cancelado.
---  O snap final usa o dest real, não a posição da part.
+--  FIX desativa/ativa: o problema era que o loop chamava
+--  TweenPlayer a cada 0.15s, e toda chamada recriava a part
+--  do zero via StopTween → nova part → novo tween.
+--  O tween aparecia "piscando" porque morria e renascia
+--  continuamente.
+--
+--  Solução: a part e o tween vivem enquanto o destino
+--  não mudar mais que DEST_THRESHOLD studs.
+--  Só recria se o destino mudou de verdade (mob se moveu
+--  longe o suficiente) ou se foi cancelado externamente.
 -- ════════════════════════════════════════
+local DEST_THRESHOLD = 8   -- studs: só recriar tween se destino mudou mais que isso
+
 local tweenRunning = false
 local tweenObj     = nil
 local steppedConn  = nil
-local tweenDest    = nil   -- destino real do tween atual
+local tweenDest    = nil
 
 local function StopTween()
     tweenRunning = false
@@ -109,19 +115,23 @@ local function TweenPlayer(dest)
     if not Char or not Humanoid or Humanoid.Health <= 0
        or not HumanoidRootPart or not dest then return end
 
-    -- já tem tween ativo pro mesmo destino? não recria
-    if tweenRunning and tweenDest then
-        local sameDest = (tweenDest.Position - dest.Position).Magnitude < 3
-        if sameDest then return end
-    end
-
+    -- destino muito próximo: snap direto
     local dist = (dest.Position - HumanoidRootPart.Position).Magnitude
     if dist < 5 then
+        StopTween()
         HumanoidRootPart.CFrame = dest
         HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
         return
     end
 
+    -- tween já rodando pro mesmo destino (dentro do threshold)?
+    -- não recria — deixa o tween atual continuar
+    if tweenRunning and tweenDest then
+        local delta = (tweenDest.Position - dest.Position).Magnitude
+        if delta < DEST_THRESHOLD then return end
+    end
+
+    -- destino mudou ou não tinha tween: recria
     StopTween()
 
     local part        = Instance.new("Part")
@@ -136,6 +146,7 @@ local function TweenPlayer(dest)
     tweenRunning = true
     tweenDest    = dest
 
+    -- Stepped: cola HRP na part a cada frame
     steppedConn = RunService.Stepped:Connect(function()
         if not tweenRunning then
             steppedConn:Disconnect()
@@ -155,20 +166,16 @@ local function TweenPlayer(dest)
 
     tweenObj:Play()
     tweenObj.Completed:Connect(function(state)
-        -- só aplica snap se completou de verdade (não foi cancelado)
-        if state == Enum.PlaybackState.Completed then
-            tweenRunning = false
-            tweenDest    = nil
-            if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
-            -- snap usa tweenDest salvo, não a posição da part
-            -- (a part pode ter sido destruída por outro StopTween)
-            if HumanoidRootPart then
-                HumanoidRootPart.CFrame = dest
-                HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-            end
-            if part and part.Parent then part:Destroy() end
-            tweenObj = nil
+        if state ~= Enum.PlaybackState.Completed then return end
+        tweenRunning = false
+        tweenDest    = nil
+        if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
+        if HumanoidRootPart then
+            HumanoidRootPart.CFrame = dest
+            HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
         end
+        if part and part.Parent then part:Destroy() end
+        tweenObj = nil
     end)
 end
 
@@ -224,9 +231,6 @@ end
 
 -- ════════════════════════════════════════
 --  EQUIP / BRING
---  FIX boss: BringEnemy agora filtra por nome do mob
---  da quest atual (NameMon). Sem filtro, puxava qualquer
---  inimigo no raio, incluindo bosses.
 -- ════════════════════════════════════════
 local function EquipWeapon(tip)
     tip = tip or _G.SelectWeapon
@@ -247,8 +251,7 @@ local function BringEnemy()
     if not _G.BringMob or not PosMon or not NameMon then return end
     local pivot = PosMon.Position
     for _, child in ipairs(Enemies:GetChildren()) do
-        -- FIX: só puxa mob cujo nome bate com o da quest
-        if not string.find(child.Name, NameMon, 1, true) then continue end
+        if child.Name ~= Mon then continue end
         local hum = child:FindFirstChildOfClass("Humanoid")
         local hrp = child:FindFirstChild("HumanoidRootPart")
         if hum and hrp and hum.Health > 0
@@ -392,21 +395,69 @@ end
 
 -- ════════════════════════════════════════
 --  ATTACK TARGET
---  FIX boneco deslizando: frozenPos era atualizado
---  mesmo depois de chegar, pq o loop chamava
---  AttackTarget toda iteração e "frozenPos = nil"
---  quando mob != lastMob era verdadeiro em edge cases.
---  Agora: frozenPos só é limpo quando o mob REALMENTE
---  morre (IsAlive false). Mob vivo = frozenPos mantido.
+--  FIX deslize: não usa âncora no mob.
+--  Pega a posição do mob vivo a cada frame,
+--  aplica um lerp suave (alpha 0.15) entre
+--  onde o player está e onde deveria estar.
+--  O mob pode se mover mas o player converge
+--  suavemente sem travar nem usar o mob como âncora.
+--  Quando está a menos de 5 studs: snap + ataca.
 -- ════════════════════════════════════════
-local frozenPos = nil
-local lastMob   = nil
+local LERP_ALPHA   = 0.15   -- suavidade do ajuste de posição (0=parado, 1=snap)
+local ARRIVE_DIST  = 5      -- studs: considera "chegou"
+local atTarget     = false  -- true quando está no ponto de ataque
+
+-- loop de posicionamento fino (separado do farm loop)
+local posConn = nil
+
+local function StartPosLoop(getMobPos)
+    if posConn then posConn:Disconnect(); posConn = nil end
+    atTarget = false
+
+    posConn = RunService.Heartbeat:Connect(function()
+        if not _G.AutoFarmLevel or not HumanoidRootPart then
+            posConn:Disconnect(); posConn = nil
+            return
+        end
+        local mobPos = getMobPos()
+        if not mobPos then
+            posConn:Disconnect(); posConn = nil
+            atTarget = false
+            return
+        end
+
+        local destino  = mobPos * Pos
+        local dist     = (HumanoidRootPart.Position - destino.Position).Magnitude
+
+        if dist <= ARRIVE_DIST then
+            -- chegou: lerp suave pra manter no ponto sem travar
+            -- O mob pode deslizar, mas o player só acompanha
+            -- na velocidade do lerp — deslize controlado, não zerado
+            local newCF = HumanoidRootPart.CFrame:Lerp(destino, LERP_ALPHA)
+            HumanoidRootPart.CFrame = newCF
+            HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+            atTarget     = true
+            _G.Seriality = true
+        else
+            atTarget     = false
+            _G.Seriality = false
+        end
+    end)
+end
+
+local function StopPosLoop()
+    if posConn then posConn:Disconnect(); posConn = nil end
+    atTarget     = false
+    _G.Seriality = false
+end
+
+local lastMob = nil
 
 local function ResetFarm()
-    frozenPos    = nil
     lastMob      = nil
     PosMon       = nil
     _G.Seriality = false
+    StopPosLoop()
 end
 
 local function AttackTarget(v)
@@ -418,46 +469,34 @@ local function AttackTarget(v)
     local mhrp = v:FindFirstChild("HumanoidRootPart")
     if not mhrp then return end
 
-    -- mob diferente do anterior: só limpa frozenPos se o anterior morreu
-    -- (não limpa se é só o loop iterando mais rápido que o mob morre)
+    -- mob trocou: reinicia o pos loop pro novo mob
     if v ~= lastMob then
-        frozenPos = nil
-        lastMob   = v
+        lastMob = v
+        StopPosLoop()
+        StopTween()
+
+        -- fecha sobre o mob via tween primeiro
+        -- o pos loop assume quando chegar perto
+        StartPosLoop(function()
+            if not v or not v.Parent or not IsAlive(v) then return nil end
+            local h = v:FindFirstChild("HumanoidRootPart")
+            return h and h.CFrame or nil
+        end)
     end
 
-    -- atualiza PosMon com posição real do mob vivo
-    -- (só enquanto não está congelado — evita o mob arrastar o player)
-    if not frozenPos then
-        PosMon = mhrp.CFrame
-    end
+    -- atualiza PosMon pro bring (posição real do mob)
+    PosMon = mhrp.CFrame
 
-    local destino = (frozenPos or PosMon) * Pos
-    if not destino then return end
+    local destino = PosMon * Pos
+    local dist    = HumanoidRootPart and
+                    (HumanoidRootPart.Position - destino.Position).Magnitude or 999
 
-    local dist = HumanoidRootPart and
-                 (HumanoidRootPart.Position - destino.Position).Magnitude or 999
-
-    if dist > 8 then
-        -- longe: segue o mob em tempo real, sem congelar
-        frozenPos = nil
+    if dist > ARRIVE_DIST + 3 then
+        -- ainda longe: tween leva até perto
         TweenPlayer(destino)
-        _G.Seriality = false
     else
-        -- chegou: congela UMA vez, não atualiza mais até mob morrer
-        if not frozenPos then
-            frozenPos = PosMon
-            StopTween()
-            if HumanoidRootPart then
-                HumanoidRootPart.CFrame = destino
-                HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-            end
-        end
-        -- mantém o player pregado no ponto congelado
-        if HumanoidRootPart then
-            HumanoidRootPart.CFrame = frozenPos * Pos
-            HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-        end
-        _G.Seriality = true
+        -- perto: tween parado, pos loop cuida
+        StopTween()
         EquipWeapon(_G.SelectWeapon)
     end
 
@@ -501,19 +540,14 @@ task.spawn(function()
                 return
             end
 
-            -- localiza mob vivo mais próximo pelo nome exato da quest
             local target   = nil
             local bestDist = math.huge
             for _, v in ipairs(Enemies:GetChildren()) do
-                -- FIX boss: nome tem que ser exatamente Mon, não contém
                 if v.Name == Mon and IsAlive(v) then
                     local mh = v:FindFirstChild("HumanoidRootPart")
                     if mh then
                         local d = (mh.Position - HumanoidRootPart.Position).Magnitude
-                        if d < bestDist then
-                            bestDist = d
-                            target   = v
-                        end
+                        if d < bestDist then bestDist = d; target = v end
                     end
                 end
             end
@@ -571,7 +605,6 @@ local TabFarm = Win:MakeTab({ Title = "Farm" })
 local TabTele = Win:MakeTab({ Title = "Teleport" })
 local TabCfg  = Win:MakeTab({ Title = "Config" })
 
--- ── Farm
 TabFarm:AddToggle({
     Title    = "Auto Farm Level",
     Default  = false,
@@ -591,47 +624,46 @@ TabFarm:AddToggle({
     Callback = function(v) _G.BringMob = v end
 })
 
--- ── Teleport — ilhas filtradas por sea
+-- teleport filtrado por sea, sem snap
 local teleDestinos = {
     [1] = {
-        ["Starter Island"]    = CFrame.new(1059,15,1550),
-        ["Jungle"]            = CFrame.new(-1448,68,11),
-        ["Pirate Village"]    = CFrame.new(-1141,4,3831),
-        ["Desert"]            = CFrame.new(924,6,4481),
-        ["Snow Mountain"]     = CFrame.new(1354,87,-1393),
-        ["Marine Fortress"]   = CFrame.new(-5035,28,4324),
-        ["Sky Island"]        = CFrame.new(-4842,717,2623),
-        ["Prison"]            = CFrame.new(5310,0,474),
-        ["Colosseum"]         = CFrame.new(-1577,7,2984),
-        ["Magma Village"]     = CFrame.new(-5316,12,8517),
-        ["Underwater City"]   = CFrame.new(61122,18,1569),
-        ["Upper Skylands"]    = CFrame.new(-4721,845,1953),
+        ["Starter Island"]  = CFrame.new(1059,15,1550),
+        ["Jungle"]          = CFrame.new(-1448,68,11),
+        ["Pirate Village"]  = CFrame.new(-1141,4,3831),
+        ["Desert"]          = CFrame.new(924,6,4481),
+        ["Snow Mountain"]   = CFrame.new(1354,87,-1393),
+        ["Marine Fortress"] = CFrame.new(-5035,28,4324),
+        ["Sky Island"]      = CFrame.new(-4842,717,2623),
+        ["Prison"]          = CFrame.new(5310,0,474),
+        ["Colosseum"]       = CFrame.new(-1577,7,2984),
+        ["Magma Village"]   = CFrame.new(-5316,12,8517),
+        ["Underwater City"] = CFrame.new(61122,18,1569),
+        ["Upper Skylands"]  = CFrame.new(-4721,845,1953),
     },
     [2] = {
-        ["Kingdom of Rose"]   = CFrame.new(-429,71,1836),
-        ["Green Zone"]        = CFrame.new(638,72,918),
-        ["Graveyard"]         = CFrame.new(-5497,48,-795),
-        ["Snow Mountain S2"]  = CFrame.new(609,401,-5372),
-        ["Hot & Cold"]        = CFrame.new(1008,125,32911),
-        ["Cursed Ship"]       = CFrame.new(-3054,237,-10145),
-        ["Ice Castle"]        = CFrame.new(1218,138,1488),
-        ["Forgotten Island"]  = CFrame.new(5259,37,4050),
-        ["Marine HQ"]         = CFrame.new(-2440,72,-3217),
+        ["Kingdom of Rose"] = CFrame.new(-429,71,1836),
+        ["Green Zone"]      = CFrame.new(638,72,918),
+        ["Graveyard"]       = CFrame.new(-5497,48,-795),
+        ["Snow Mountain S2"]= CFrame.new(609,401,-5372),
+        ["Hot & Cold"]      = CFrame.new(1008,125,32911),
+        ["Cursed Ship"]     = CFrame.new(-3054,237,-10145),
+        ["Ice Castle"]      = CFrame.new(1218,138,1488),
+        ["Forgotten Island"]= CFrame.new(5259,37,4050),
+        ["Marine HQ"]       = CFrame.new(-2440,72,-3217),
     },
     [3] = {
-        ["Pirate Port"]       = CFrame.new(-289,44,5580),
-        ["Amazon Lily"]       = CFrame.new(5832,51,-1100),
-        ["Great Tree"]        = CFrame.new(2180,28,-6740),
-        ["Haunted Castle"]    = CFrame.new(-9515,142,5536),
-        ["Candy Island"]      = CFrame.new(-1149,13,-14445),
-        ["Tiki Outpost"]      = CFrame.new(-16547,55,-172),
-        ["Dragon Dojo"]       = CFrame.new(-16547,55,-172),
-        ["Floating Turtle"]   = CFrame.new(6625,378,244),
-        ["Labyrinth"]         = CFrame.new(7021,55,-730),
+        ["Pirate Port"]     = CFrame.new(-289,44,5580),
+        ["Amazon Lily"]     = CFrame.new(5832,51,-1100),
+        ["Great Tree"]      = CFrame.new(2180,28,-6740),
+        ["Haunted Castle"]  = CFrame.new(-9515,142,5536),
+        ["Candy Island"]    = CFrame.new(-1149,13,-14445),
+        ["Tiki Outpost"]    = CFrame.new(-16547,55,-172),
+        ["Floating Turtle"] = CFrame.new(6625,378,244),
+        ["Labyrinth"]       = CFrame.new(7021,55,-730),
     },
 }
 
-local seaMap = teleDestinos[CurrentSea] or teleDestinos[1]
+local seaMap  = teleDestinos[CurrentSea] or teleDestinos[1]
 local destKeys = {}
 for k in pairs(seaMap) do table.insert(destKeys, k) end
 table.sort(destKeys)
@@ -644,19 +676,10 @@ TabTele:AddDropdown({
     Callback = function(v) selectedDest = v end
 })
 TabTele:AddButton({
-    Title    = "Teleportar (Tween)",
+    Title    = "Teleportar",
     Callback = function()
         if not HumanoidRootPart then return end
         TweenPlayer(seaMap[selectedDest])
-    end
-})
-TabTele:AddButton({
-    Title    = "Teleportar (Snap)",
-    Callback = function()
-        if not HumanoidRootPart then return end
-        StopTween()
-        HumanoidRootPart.CFrame = seaMap[selectedDest]
-        HumanoidRootPart.AssemblyLinearVelocity = Vector3.zero
     end
 })
 TabTele:AddButton({
@@ -669,7 +692,6 @@ TabTele:AddButton({
     end
 })
 
--- ── Config
 TabCfg:AddDropdown({
     Title    = "Arma",
     Options  = {"Melee","Sword","Blox Fruit"},
@@ -685,4 +707,4 @@ TabCfg:AddSlider({
     Callback = function(v) _G.PlayerTweenSpeed = v end
 })
 
-print("[Auto Farm] carregado — 4 fixes")
+print("[Auto Farm] carregado")
