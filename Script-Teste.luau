@@ -1,6 +1,6 @@
 --[[
+  Fix nil: Data/Level/Quest/Root
   Abas: Info | Farm | Farm Settings | Stats | ESP | Teleport | Shop | Misc
-  Farm core = gghub | extras = Banana | Redeem = Remotes.Redeem
 ]]
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
@@ -22,26 +22,62 @@ local plr = Players.LocalPlayer
 local Root, Character, Humanoid
 
 local function RefreshChar(c)
+    if not c then return end
     Character = c
-    Humanoid  = c:WaitForChild("Humanoid")
-    Root      = c:WaitForChild("HumanoidRootPart")
+    Humanoid  = c:FindFirstChildOfClass("Humanoid") or c:WaitForChild("Humanoid", 5)
+    Root      = c:FindFirstChild("HumanoidRootPart") or c:WaitForChild("HumanoidRootPart", 5)
 end
 if plr.Character then RefreshChar(plr.Character) end
 plr.CharacterAdded:Connect(RefreshChar)
 
+-- Data seguro
+local function GetData()
+    return plr:FindFirstChild("Data")
+end
+
+local function GetLevel()
+    local d = GetData()
+    local lv = d and d:FindFirstChild("Level")
+    return (lv and lv.Value) or 1
+end
+
+local function GetPoints()
+    local d = GetData()
+    local p = d and d:FindFirstChild("Points")
+    return (p and p.Value) or 0
+end
+
 local replicated = ReplicatedStorage
-local Enemies    = workspace:WaitForChild("Enemies")
-local Net        = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
-local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
-local RegisterHit    = Net:WaitForChild("RE/RegisterHit")
+local Enemies    = workspace:WaitForChild("Enemies", 10)
+
+local Net = ReplicatedStorage:FindFirstChild("Modules")
+Net = Net and Net:FindFirstChild("Net")
+local RegisterAttack = Net and Net:FindFirstChild("RE/RegisterAttack")
+local RegisterHit    = Net and Net:FindFirstChild("RE/RegisterHit")
 
 World1 = game.PlaceId == 2753915549 or game.PlaceId == 85211729168715
 World2 = game.PlaceId == 4442272183 or game.PlaceId == 79091703265657
 World3 = game.PlaceId == 7449423635 or game.PlaceId == 100117331123089
 local CurrentSea = World1 and 1 or World2 and 2 or World3 and 3 or 1
 
-pcall(function() replicated.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
-pcall(function() require(replicated.Util.CameraShaker):Stop() end)
+pcall(function()
+    local r = replicated:FindFirstChild("Remotes")
+    if r and r:FindFirstChild("CommF_") then
+        r.CommF_:InvokeServer("SetTeam", "Pirates")
+    end
+end)
+pcall(function()
+    local util = replicated:FindFirstChild("Util")
+    if util and util:FindFirstChild("CameraShaker") then
+        require(util.CameraShaker):Stop()
+    end
+end)
+
+local function CommF_(...)
+    local r = replicated:FindFirstChild("Remotes")
+    local c = r and r:FindFirstChild("CommF_")
+    if c then return c:InvokeServer(...) end
+end
 
 Sec = 0.1
 shouldTween = false
@@ -58,7 +94,6 @@ _G.FindBoss = "The Gorilla King"
 _G.AutoBuso = true
 _G.AntiAFK = true
 _G.InfiniteJump = false
-_G.FPSBoost = false
 _G.FarmDistance = 30
 _B = true
 PosMon = Vector3.zero
@@ -67,6 +102,21 @@ _G.StatChunk = 3
 
 PlayerEsp, IslandESP, DevilFruitESP, ChestESP = false, false, false, false
 local EspNumber = math.random(1, 1000000)
+
+-- Quest GUI helper
+local function GetQuestVisible()
+    local ok, vis = pcall(function()
+        return plr.PlayerGui.Main.Quest.Visible
+    end)
+    return ok and vis == true
+end
+
+local function GetQuestTitle()
+    local ok, t = pcall(function()
+        return plr.PlayerGui.Main.Quest.Container.QuestTitle.Title.Text
+    end)
+    return (ok and t) and tostring(t) or ""
+end
 
 -- ====================== TWEEN ======================
 local block = Instance.new("Part")
@@ -89,23 +139,18 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    repeat task.wait() until plr.Character and plr.Character.PrimaryPart
-    block.CFrame = plr.Character.PrimaryPart.CFrame
     while task.wait() do
         pcall(function()
+            if not plr.Character or not plr.Character.PrimaryPart then return end
             if getgenv().OnFarm and block and block.Parent == workspace then
-                local pp = plr.Character and plr.Character.PrimaryPart
-                if pp then
-                    if (pp.Position - block.Position).Magnitude <= 200 then
-                        pp.CFrame = block.CFrame
-                    else
-                        block.CFrame = pp.CFrame
-                    end
+                local pp = plr.Character.PrimaryPart
+                if (pp.Position - block.Position).Magnitude <= 200 then
+                    pp.CFrame = block.CFrame
+                else
+                    block.CFrame = pp.CFrame
                 end
-                if plr.Character then
-                    for _, e in pairs(plr.Character:GetChildren()) do
-                        if e:IsA("BasePart") then e.CanCollide = false end
-                    end
+                for _, e in pairs(plr.Character:GetChildren()) do
+                    if e:IsA("BasePart") then e.CanCollide = false end
                 end
             end
         end)
@@ -142,12 +187,15 @@ task.spawn(function()
 end)
 
 _tp = function(target)
+    if typeof(target) \~= "CFrame" then return end
     local character = plr.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    local rootPart = character.HumanoidRootPart
+    if not character then return end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
     local distance = (target.Position - rootPart.Position).Magnitude
-    local tween = TweenService:Create(block, TweenInfo.new(distance / 300, Enum.EasingStyle.Linear), {CFrame = target})
-    if character.Humanoid.Sit then
+    local tween = TweenService:Create(block, TweenInfo.new(math.max(distance / 300, 0.05), Enum.EasingStyle.Linear), {CFrame = target})
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Sit then
         block.CFrame = CFrame.new(block.Position.X, target.Y, block.Position.Z)
     end
     tween:Play()
@@ -160,36 +208,40 @@ _tp = function(target)
 end
 
 notween = function(p)
-    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-        plr.Character.HumanoidRootPart.CFrame = p
-    end
+    if typeof(p) \~= "CFrame" then return end
+    local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then hrp.CFrame = p end
 end
 
 -- ====================== COMBAT ======================
 EquipWeapon = function(text)
-    if not text then return end
-    if plr.Backpack:FindFirstChild(text) then
-        plr.Character.Humanoid:EquipTool(plr.Backpack:FindFirstChild(text))
-    end
+    if not text or not plr.Character then return end
+    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+    local tool = plr.Backpack:FindFirstChild(text)
+    if hum and tool then hum:EquipTool(tool) end
 end
 
 weaponSc = function(weapon)
+    if not weapon then return end
     for _, v in pairs(plr.Backpack:GetChildren()) do
         if v:IsA("Tool") and v.ToolTip == weapon then EquipWeapon(v.Name) end
     end
 end
 
 BringEnemy = function()
-    if not _B then return end
+    if not _B or not PosMon then return end
     for _, v in pairs(workspace.Enemies:GetChildren()) do
-        if v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v.PrimaryPart then
-            if (v.PrimaryPart.Position - PosMon).Magnitude <= 300 then
-                v.PrimaryPart.CFrame = CFrame.new(PosMon)
-                v.PrimaryPart.CanCollide = true
-                v.Humanoid.WalkSpeed = 0
-                v.Humanoid.JumpPower = 0
-                if v.Humanoid:FindFirstChild("Animator") then v.Humanoid.Animator:Destroy() end
-                plr.SimulationRadius = math.huge
+        local hum = v:FindFirstChild("Humanoid")
+        local pp = v.PrimaryPart or v:FindFirstChild("HumanoidRootPart")
+        if hum and pp and hum.Health > 0 then
+            if (pp.Position - PosMon).Magnitude <= 300 then
+                pp.CFrame = CFrame.new(PosMon)
+                pp.CanCollide = true
+                hum.WalkSpeed = 0
+                hum.JumpPower = 0
+                local anim = hum:FindFirstChild("Animator")
+                if anim then anim:Destroy() end
+                pcall(function() plr.SimulationRadius = math.huge end)
             end
         end
     end
@@ -197,31 +249,40 @@ end
 
 Attack = {}
 Attack.Alive = function(m)
-    local h = m and m:FindFirstChild("Humanoid")
-    return h and h.Health > 0
+    if not m then return false end
+    local h = m:FindFirstChild("Humanoid")
+    return h \~= nil and h.Health > 0
 end
 
 Attack.Kill = function(model, Succes)
-    if model and Succes and model:FindFirstChild("HumanoidRootPart") then
-        if not model:GetAttribute("Locked") then
-            model:SetAttribute("Locked", model.HumanoidRootPart.CFrame)
-        end
-        PosMon = model:GetAttribute("Locked").Position
-        BringEnemy()
-        weaponSc(_G.SelectWeapon)
-        local eq = plr.Character and plr.Character:FindFirstChildOfClass("Tool")
-        local tip = eq and eq.ToolTip
-        local y = _G.FarmDistance or 30
-        if tip == "Blox Fruit" then
-            _tp(model.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(0, math.rad(90), 0))
-        else
-            _tp(model.HumanoidRootPart.CFrame * CFrame.new(0, y, 0) * CFrame.Angles(0, math.rad(180), 0))
-        end
+    if not model or not Succes then return end
+    local mhrp = model:FindFirstChild("HumanoidRootPart")
+    if not mhrp then return end
+    if not model:GetAttribute("Locked") then
+        model:SetAttribute("Locked", mhrp.CFrame)
+    end
+    local locked = model:GetAttribute("Locked")
+    if typeof(locked) == "CFrame" then
+        PosMon = locked.Position
+    else
+        PosMon = mhrp.Position
+    end
+    BringEnemy()
+    weaponSc(_G.SelectWeapon)
+    local eq = plr.Character and plr.Character:FindFirstChildOfClass("Tool")
+    local tip = eq and eq.ToolTip
+    local y = _G.FarmDistance or 30
+    if tip == "Blox Fruit" then
+        _tp(mhrp.CFrame * CFrame.new(0, 10, 0) * CFrame.Angles(0, math.rad(90), 0))
+    else
+        _tp(mhrp.CFrame * CFrame.new(0, y, 0) * CFrame.Angles(0, math.rad(180), 0))
     end
 end
 
 local function GetEnemiesInRange(character, range)
-    local targets, pos = {}, character:GetPivot().Position
+    local targets = {}
+    if not character then return targets end
+    local pos = character:GetPivot().Position
     for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
         local hrp = enemy:FindFirstChild("HumanoidRootPart")
         local hum = enemy:FindFirstChild("Humanoid")
@@ -233,6 +294,7 @@ local function GetEnemiesInRange(character, range)
 end
 
 function AttackNoCoolDown()
+    if not RegisterAttack or not RegisterHit then return end
     local character = plr.Character
     if not character or not character:FindFirstChildOfClass("Tool") then return end
     local list = GetEnemiesInRange(character, 60)
@@ -244,23 +306,30 @@ function AttackNoCoolDown()
             local part = enemy:FindFirstChild(limbs[math.random(#limbs)]) or enemy.PrimaryPart
             if part then
                 table.insert(targets, {enemy, part})
-                mainTarget = part
+                if not mainTarget then mainTarget = part end
             end
         end
     end
     if not mainTarget then return end
-    RegisterAttack:FireServer(0)
+    pcall(function() RegisterAttack:FireServer(0) end)
     local hitFn
     if getsenv then
-        local ls = plr:FindFirstChild("PlayerScripts") and plr.PlayerScripts:FindFirstChildOfClass("LocalScript")
+        local ps = plr:FindFirstChild("PlayerScripts")
+        local ls = ps and ps:FindFirstChildOfClass("LocalScript")
         if ls then
             local ok, env = pcall(getsenv, ls)
             if ok and env and env._G then hitFn = env._G.SendHitsToServer end
         end
     end
-    local okF, thread = pcall(function() return require(replicated.Modules.Flags).COMBAT_REMOTE_THREAD end)
-    if okF and thread and hitFn then hitFn(mainTarget, targets)
-    else RegisterHit:FireServer(mainTarget, targets) end
+    local okF, thread = pcall(function()
+        local flags = replicated:FindFirstChild("Modules") and replicated.Modules:FindFirstChild("Flags")
+        if flags then return require(flags).COMBAT_REMOTE_THREAD end
+        return false
+    end)
+    pcall(function()
+        if okF and thread and hitFn then hitFn(mainTarget, targets)
+        else RegisterHit:FireServer(mainTarget, targets) end
+    end)
 end
 
 RunService.Heartbeat:Connect(function()
@@ -278,11 +347,11 @@ RunService.Heartbeat:Connect(function()
     end)
 end)
 
--- ====================== QUEST LEVEL ======================
+-- ====================== QUEST ======================
 local Mon, Qdata, Qname, NameMon, PosM, PosQ
 
 local function QuestCheck()
-    local a = plr.Data.Level.Value
+    local a = GetLevel()
     if World1 then
         if a <= 9 then Mon,Qdata,Qname,NameMon="Bandit",1,"BanditQuest1","Bandit"; PosQ=CFrame.new(1059.37,15.45,1550.42); PosM=CFrame.new(1045.96,27,1560.82)
         elseif a <= 14 then Mon,Qdata,Qname,NameMon="Monkey",1,"JungleQuest","Monkey"; PosQ=CFrame.new(-1598.09,35.55,153.38); PosM=CFrame.new(-1448.52,67.85,11.47)
@@ -313,41 +382,45 @@ end
 
 spawn(function()
     while wait(Sec) do
-        if _G.Level then
-            pcall(function()
-                local QuestTitle = plr.PlayerGui.Main.Quest.Container.QuestTitle.Title.Text
-                if not string.find(QuestTitle, QuestNeta()[5]) then
-                    replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
+        if not _G.Level then continue end
+        pcall(function()
+            if not Root then return end
+            local q = QuestNeta()
+            if not q[1] or not q[6] then return end
+            local QuestTitle = GetQuestTitle()
+            if QuestTitle \~= "" and not string.find(QuestTitle, q[5] or "", 1, true) then
+                CommF_("AbandonQuest")
+            end
+            if not GetQuestVisible() then
+                _tp(q[6])
+                if Root and (Root.Position - q[6].Position).Magnitude <= 5 then
+                    CommF_("StartQuest", q[3], q[2])
                 end
-                if plr.PlayerGui.Main.Quest.Visible == false then
-                    _tp(QuestNeta()[6])
-                    if (Root.Position - QuestNeta()[6].Position).Magnitude <= 5 then
-                        replicated.Remotes.CommF_:InvokeServer("StartQuest", QuestNeta()[3], QuestNeta()[2])
-                    end
-                elseif plr.PlayerGui.Main.Quest.Visible == true then
-                    if workspace.Enemies:FindFirstChild(QuestNeta()[1]) then
-                        for _, v in pairs(workspace.Enemies:GetChildren()) do
-                            if Attack.Alive(v) and v.Name == QuestNeta()[1] then
-                                if string.find(QuestTitle, QuestNeta()[5]) then
-                                    repeat wait()
-                                        Attack.Kill(v, _G.Level)
-                                        _G.Seriality = true
-                                    until not _G.Level or v.Humanoid.Health <= 0 or not v.Parent or plr.PlayerGui.Main.Quest.Visible == false
-                                    _G.Seriality = false
-                                else
-                                    replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
-                                end
+            else
+                local found = workspace.Enemies:FindFirstChild(q[1])
+                if found then
+                    for _, v in pairs(workspace.Enemies:GetChildren()) do
+                        if Attack.Alive(v) and v.Name == q[1] then
+                            if QuestTitle == "" or string.find(QuestTitle, q[5] or "", 1, true) then
+                                repeat wait()
+                                    Attack.Kill(v, _G.Level)
+                                    _G.Seriality = true
+                                until not _G.Level or not Attack.Alive(v) or not v.Parent or not GetQuestVisible()
+                                _G.Seriality = false
+                            else
+                                CommF_("AbandonQuest")
                             end
                         end
-                    else
-                        _tp(QuestNeta()[4])
-                        if replicated:FindFirstChild(QuestNeta()[1]) then
-                            _tp(replicated:FindFirstChild(QuestNeta()[1]).HumanoidRootPart.CFrame * CFrame.new(0, 30, 0))
-                        end
+                    end
+                else
+                    if q[4] then _tp(q[4]) end
+                    local repMob = replicated:FindFirstChild(q[1])
+                    if repMob and repMob:FindFirstChild("HumanoidRootPart") then
+                        _tp(repMob.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0))
                     end
                 end
-            end)
-        end
+            end
+        end)
     end
 end)
 
@@ -360,7 +433,7 @@ spawn(function()
                     repeat wait()
                         Attack.Kill(v, _G.AutoFarmNear)
                         _G.Seriality = true
-                    until not _G.AutoFarmNear or not v.Parent or v.Humanoid.Health <= 0
+                    until not _G.AutoFarmNear or not v.Parent or not Attack.Alive(v)
                     _G.Seriality = false
                 end
             end
@@ -368,7 +441,7 @@ spawn(function()
     end
 end)
 
--- ====================== BOSS FARM ======================
+-- ====================== BOSS ======================
 local BossData = {
     [1] = {
         {Name="The Gorilla King", CF=CFrame.new(-1088.76,8.13,-488.56)},
@@ -418,19 +491,21 @@ for _, b in ipairs(seaBosses) do
     table.insert(seaBossNames, b.Name)
     seaBossCF[b.Name] = b.CF
 end
-_G.FindBoss = seaBossNames[1] or "The Gorilla King"
+if #seaBossNames == 0 then seaBossNames = {"The Gorilla King"} end
+_G.FindBoss = seaBossNames[1]
 
 spawn(function()
     while wait(Sec) do
         if not _G.FarmBoss then continue end
         pcall(function()
             local name = _G.FindBoss
+            if not name then return end
             local target = workspace.Enemies:FindFirstChild(name) or replicated:FindFirstChild(name)
             if target and Attack.Alive(target) and target:FindFirstChild("HumanoidRootPart") then
                 repeat wait()
                     Attack.Kill(target, _G.FarmBoss)
                     _G.Seriality = true
-                until not _G.FarmBoss or not target.Parent or target.Humanoid.Health <= 0
+                until not _G.FarmBoss or not target.Parent or not Attack.Alive(target)
                 _G.Seriality = false
             else
                 local cf = seaBossCF[name]
@@ -444,9 +519,9 @@ end)
 UpdStFruit = function()
     for _, v1 in pairs(plr.Backpack:GetChildren()) do
         local sf = v1:FindFirstChild("EatRemote", true)
-        if sf then
+        if sf and sf.Parent then
             pcall(function()
-                replicated.Remotes.CommF_:InvokeServer("StoreFruit", sf.Parent:GetAttribute("OriginalName"), plr.Backpack:FindFirstChild(v1.Name))
+                CommF_("StoreFruit", sf.Parent:GetAttribute("OriginalName"), plr.Backpack:FindFirstChild(v1.Name))
             end)
         end
     end
@@ -456,15 +531,15 @@ collectFruits = function(on)
     if not on or not Root then return end
     for _, child in pairs(workspace:GetChildren()) do
         if string.find(child.Name, "Fruit") and child:FindFirstChild("Handle") then
-            child.Handle.CFrame = Root.CFrame
+            pcall(function() child.Handle.CFrame = Root.CFrame end)
         end
     end
 end
 
 spawn(function()
     while wait(0.4) do
-        if _G.AutoCollectFruit then collectFruits(true) end
-        if _G.AutoStoreFruit then UpdStFruit() end
+        if _G.AutoCollectFruit then pcall(collectFruits, true) end
+        if _G.AutoStoreFruit then pcall(UpdStFruit) end
     end
 end)
 
@@ -490,7 +565,7 @@ spawn(function()
                 _tp(cf * CFrame.new(0, 2, 0))
                 if dist <= 12 then
                     local part = nearest:IsA("Model") and (nearest.PrimaryPart or nearest:FindFirstChildWhichIsA("BasePart")) or nearest
-                    if part then
+                    if part and firetouchinterest then
                         pcall(function() firetouchinterest(Root, part, 0) end)
                         pcall(function() firetouchinterest(Root, part, 1) end)
                     end
@@ -504,14 +579,11 @@ spawn(function()
     while wait(1.5) do
         if not _G.AutoStats then continue end
         pcall(function()
-            local pts = plr.Data.Points.Value
+            local pts = GetPoints()
             if pts <= 0 then return end
             local chunk = math.min(pts, _G.StatChunk or 3)
             for stat, en in pairs(_G.StatsMap) do
-                if en then
-                    replicated.Remotes.CommF_:InvokeServer("AddPoint", stat, chunk)
-                    task.wait(0.08)
-                end
+                if en then CommF_("AddPoint", stat, chunk); task.wait(0.08) end
             end
         end)
     end
@@ -519,34 +591,31 @@ end)
 
 spawn(function()
     while wait(5) do
-        if _G.AutoBuso and AnyFarm() then
-            pcall(function() replicated.Remotes.CommF_:InvokeServer("Buso") end)
-        end
+        if _G.AutoBuso and AnyFarm() then pcall(function() CommF_("Buso") end) end
     end
 end)
 
 -- ====================== ESP ======================
-local function DistM(a, b) return math.floor(((a - b).Magnitude / 3) + 0.5) end
+local function DistM(a, b)
+    if not a or not b then return 0 end
+    return math.floor(((a - b).Magnitude / 3) + 0.5)
+end
 
 EspPly = function()
     for _, v1 in pairs(Players:GetPlayers()) do
         pcall(function()
-            if not v1.Character or not v1.Character:FindFirstChild("Head") or not plr.Character or not plr.Character:FindFirstChild("Head") then return end
-            local head = v1.Character.Head
+            if v1 == plr or not v1.Character then return end
+            local head = v1.Character:FindFirstChild("Head")
+            local hum = v1.Character:FindFirstChildOfClass("Humanoid")
+            local myHead = plr.Character and plr.Character:FindFirstChild("Head")
+            if not head or not hum or not myHead then return end
             local tag = head:FindFirstChild("NameEsp" .. EspNumber)
-            if PlayerEsp and v1 \~= plr then
-                local txt = v1.Name .. " | " .. DistM(plr.Character.Head.Position, head.Position) .. " M\nHP " .. math.floor(v1.Character.Humanoid.Health * 100 / v1.Character.Humanoid.MaxHealth) .. "%"
-                if tag then tag.TextLabel.Text = txt
-                else
-                    local bb = Instance.new("BillboardGui", head)
-                    bb.Name = "NameEsp" .. EspNumber
-                    bb.Size = UDim2.new(1, 200, 1, 30)
-                    bb.Adornee = head
-                    bb.AlwaysOnTop = true
-                    local tl = Instance.new("TextLabel", bb)
-                    tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.TextWrapped = true
-                    tl.Text = txt; tl.Size = UDim2.new(1,0,1,0)
-                    tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5
+            if PlayerEsp then
+                local txt = v1.Name .. " | " .. DistM(myHead.Position, head.Position) .. " M\nHP " .. math.floor(hum.Health * 100 / math.max(hum.MaxHealth,1)) .. "%"
+                if tag and tag:FindFirstChild("TextLabel") then tag.TextLabel.Text = txt
+                elseif not tag then
+                    local bb = Instance.new("BillboardGui"); bb.Name = "NameEsp"..EspNumber; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = head; bb.AlwaysOnTop = true; bb.Parent = head
+                    local tl = Instance.new("TextLabel", bb); tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.TextWrapped = true; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0); tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5
                     tl.TextColor3 = (v1.Team == plr.Team) and Color3.fromRGB(0,120,255) or Color3.fromRGB(255,60,60)
                 end
             elseif tag then tag:Destroy() end
@@ -562,16 +631,13 @@ LocationEsp = function()
             if v1.Name == "Sea" then return end
             local tag = v1:FindFirstChild("NameEsp")
             if IslandESP then
-                local pos = v1:IsA("BasePart") and v1.Position or v1:GetPivot().Position
+                local pos = v1:IsA("BasePart") and v1.Position or (v1.GetPivot and v1:GetPivot().Position)
+                if not pos then return end
                 local txt = v1.Name .. "\n" .. DistM(Root.Position, pos) .. " M"
-                if tag then tag.TextLabel.Text = txt
-                else
-                    local bb = Instance.new("BillboardGui", v1)
-                    bb.Name = "NameEsp"; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = v1; bb.AlwaysOnTop = true
-                    local tl = Instance.new("TextLabel", bb)
-                    tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0)
-                    tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5
-                    tl.TextColor3 = Color3.fromRGB(80,255,120)
+                if tag and tag:FindFirstChild("TextLabel") then tag.TextLabel.Text = txt
+                elseif not tag then
+                    local bb = Instance.new("BillboardGui", v1); bb.Name = "NameEsp"; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = v1; bb.AlwaysOnTop = true
+                    local tl = Instance.new("TextLabel", bb); tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0); tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5; tl.TextColor3 = Color3.fromRGB(80,255,120)
                 end
             elseif tag then tag:Destroy() end
         end)
@@ -582,19 +648,16 @@ FruitEsp = function()
     if not Root then return end
     for _, v1 in pairs(workspace:GetChildren()) do
         pcall(function()
-            if not string.find(v1.Name, "Fruit") or not v1:FindFirstChild("Handle") then return end
-            local handle = v1.Handle
+            if not string.find(v1.Name, "Fruit") then return end
+            local handle = v1:FindFirstChild("Handle")
+            if not handle then return end
             local tag = handle:FindFirstChild("NameEsp" .. EspNumber)
             if DevilFruitESP then
                 local txt = v1.Name .. "\n" .. DistM(Root.Position, handle.Position) .. " M"
-                if tag then tag.TextLabel.Text = txt
-                else
-                    local bb = Instance.new("BillboardGui", handle)
-                    bb.Name = "NameEsp" .. EspNumber; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = handle; bb.AlwaysOnTop = true
-                    local tl = Instance.new("TextLabel", bb)
-                    tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0)
-                    tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5
-                    tl.TextColor3 = Color3.fromRGB(220,80,255)
+                if tag and tag:FindFirstChild("TextLabel") then tag.TextLabel.Text = txt
+                elseif not tag then
+                    local bb = Instance.new("BillboardGui", handle); bb.Name = "NameEsp"..EspNumber; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = handle; bb.AlwaysOnTop = true
+                    local tl = Instance.new("TextLabel", bb); tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0); tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5; tl.TextColor3 = Color3.fromRGB(220,80,255)
                 end
             elseif tag then tag:Destroy() end
         end)
@@ -609,14 +672,10 @@ ChestEspFn = function()
             local tag = obj:FindFirstChild("NameEsp" .. EspNumber)
             if ChestESP then
                 local txt = obj.Name .. "\n" .. DistM(Root.Position, obj.Position) .. " M"
-                if tag then tag.TextLabel.Text = txt
-                else
-                    local bb = Instance.new("BillboardGui", obj)
-                    bb.Name = "NameEsp" .. EspNumber; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = obj; bb.AlwaysOnTop = true
-                    local tl = Instance.new("TextLabel", bb)
-                    tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0)
-                    tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5
-                    tl.TextColor3 = Color3.fromRGB(255,215,0)
+                if tag and tag:FindFirstChild("TextLabel") then tag.TextLabel.Text = txt
+                elseif not tag then
+                    local bb = Instance.new("BillboardGui", obj); bb.Name = "NameEsp"..EspNumber; bb.Size = UDim2.new(1,200,1,30); bb.Adornee = obj; bb.AlwaysOnTop = true
+                    local tl = Instance.new("TextLabel", bb); tl.Font = Enum.Font.Code; tl.TextSize = 14; tl.Text = txt; tl.Size = UDim2.new(1,0,1,0); tl.BackgroundTransparency = 1; tl.TextStrokeTransparency = 0.5; tl.TextColor3 = Color3.fromRGB(255,215,0)
                 end
             elseif tag then tag:Destroy() end
         end)
@@ -625,21 +684,25 @@ end
 
 spawn(function()
     while wait(1) do
-        if PlayerEsp then EspPly() end
-        if IslandESP then LocationEsp() end
-        if DevilFruitESP then FruitEsp() end
-        if ChestESP then ChestEspFn() end
+        if PlayerEsp then pcall(EspPly) end
+        if IslandESP then pcall(LocationEsp) end
+        if DevilFruitESP then pcall(FruitEsp) end
+        if ChestESP then pcall(ChestEspFn) end
     end
 end)
 
 UserInputService.JumpRequest:Connect(function()
-    if _G.InfiniteJump and Humanoid then Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+    if _G.InfiniteJump and Humanoid then
+        pcall(function() Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    end
 end)
 plr.Idled:Connect(function()
-    if _G.AntiAFK then VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end
+    if _G.AntiAFK then
+        pcall(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new()) end)
+    end
 end)
 
--- ====================== ISLANDS / CODES ======================
+-- ====================== MAPS / CODES ======================
 local IslandMap = {
     [1] = {
         ["Starter Island"]=CFrame.new(1059,15,1550), ["Jungle"]=CFrame.new(-1448,68,11),
@@ -663,10 +726,12 @@ local IslandMap = {
     },
 }
 local seaIslands = IslandMap[CurrentSea] or IslandMap[1]
-local islandKeys = {}; for k in pairs(seaIslands) do table.insert(islandKeys, k) end; table.sort(islandKeys)
+local islandKeys = {}
+for k in pairs(seaIslands) do table.insert(islandKeys, k) end
+table.sort(islandKeys)
+if #islandKeys == 0 then islandKeys = {"Starter Island"} end
 local selIsland = islandKeys[1]
 
--- Banana codes + Redeem remote correto
 local Codes = {
     "LIGHTNINGABUSE","1LOSTADMIN","ADMINFIGHT","GIFTING_HOURS","NOMOREHACK","BANEXPLOIT",
     "WildDares","BossBuild","GetPranked","EARN_FRUITS","SUB2GAMERROBOT_RESET1","KITT_RESET",
@@ -679,30 +744,32 @@ local Codes = {
 }
 
 local function RedeemAllCodes()
-    local Redeem = replicated.Remotes:FindFirstChild("Redeem")
-    if not Redeem then return false, "Remotes.Redeem não encontrado" end
+    local remotes = replicated:FindFirstChild("Remotes")
+    local Redeem = remotes and remotes:FindFirstChild("Redeem")
+    if not Redeem then return false, "Remotes.Redeem nao encontrado" end
     local n = 0
     for _, code in ipairs(Codes) do
         pcall(function()
-            if Redeem.InvokeServer then Redeem:InvokeServer(code)
+            if Redeem:IsA("RemoteFunction") then Redeem:InvokeServer(code)
             else Redeem:FireServer(code) end
-            n += 1
+            n = n + 1
         end)
         task.wait(0.05)
     end
     return true, n
 end
 
--- ====================== INFO HELPERS (Banana) ======================
+-- Info helpers
 local function GetMoonText()
     local id = ""
     pcall(function()
-        if Lighting:FindFirstChild("Sky") then id = Lighting.Sky.MoonTextureId end
-        if World1 or World2 then
-            if Lighting:FindFirstChild("FantasySky") then id = Lighting.FantasySky.MoonTextureId end
+        if (World1 or World2) and Lighting:FindFirstChild("FantasySky") then
+            id = Lighting.FantasySky.MoonTextureId or ""
+        elseif Lighting:FindFirstChild("Sky") then
+            id = Lighting.Sky.MoonTextureId or ""
         end
     end)
-    if id == "http://www.roblox.com/asset/?id=9709149431" then return "Moon 5/5 Full ✅"
+    if id == "http://www.roblox.com/asset/?id=9709149431" then return "Moon 5/5 Full"
     elseif id == "http://www.roblox.com/asset/?id=9709149052" then return "Moon 4/5"
     elseif id == "http://www.roblox.com/asset/?id=9709143733" then return "Moon 3/5"
     elseif id == "http://www.roblox.com/asset/?id=9709150401" then return "Moon 2/5"
@@ -712,49 +779,56 @@ local function GetMoonText()
 end
 
 local function LocHas(name)
-    local locs = workspace:FindFirstChild("_WorldOrigin") and workspace._WorldOrigin:FindFirstChild("Locations")
-    if locs and locs:FindFirstChild(name) then return "✅" end
-    if workspace.Map and workspace.Map:FindFirstChild(name:gsub(" ", "")) then return "✅" end
-    if name == "Kitsune Island" and workspace.Map and workspace.Map:FindFirstChild("KitsuneIsland") then return "✅" end
-    return "❌"
+    local ok = false
+    pcall(function()
+        local locs = workspace:FindFirstChild("_WorldOrigin") and workspace._WorldOrigin:FindFirstChild("Locations")
+        if locs and locs:FindFirstChild(name) then ok = true end
+        if name == "Kitsune Island" and workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("KitsuneIsland") then ok = true end
+    end)
+    return ok and "YES" or "NO"
 end
 
 local function EnemyOrRep(name)
-    if workspace.Enemies:FindFirstChild(name) or replicated:FindFirstChild(name) then return "✅" end
-    return "❌"
+    local ok = false
+    pcall(function()
+        if workspace.Enemies:FindFirstChild(name) or replicated:FindFirstChild(name) then ok = true end
+    end)
+    return ok and "YES" or "NO"
 end
 
 local function GetPing()
     local ok, s = pcall(function()
         return StatsService.Network.ServerStatsItem["Data Ping"]:GetValueString()
     end)
-    return ok and s or "?"
+    return ok and tostring(s) or "?"
 end
 
 local function BuildInfoText()
-    local lv = plr.Data and plr.Data.Level.Value or "?"
-    local beli = plr.Data and plr.Data.Beli and plr.Data.Beli.Value or "?"
-    local frag = plr.Data and plr.Data.Fragments and plr.Data.Fragments.Value or "?"
-    local race = plr.Data and plr.Data.Race and (plr.Data.Race.C and plr.Data.Race.C.Value or plr.Data.Race.Value) or "?"
-    local df = plr.Data and plr.Data.DevilFruit and plr.Data.DevilFruit.Value or "None"
-    local gt = math.floor(workspace.DistributedGameTime + 0.5)
-    local gh = math.floor(gt/3600)%24
-    local gm = math.floor(gt/60)%60
-    local gs = gt%60
+    local d = GetData()
+    local lv = GetLevel()
+    local beli = d and d:FindFirstChild("Beli") and d.Beli.Value or "?"
+    local frag = d and d:FindFirstChild("Fragments") and d.Fragments.Value or "?"
+    local race = "?"
+    pcall(function()
+        if d and d:FindFirstChild("Race") then
+            if d.Race:FindFirstChild("C") then race = d.Race.C.Value
+            else race = tostring(d.Race.Value) end
+        end
+    end)
+    local df = d and d:FindFirstChild("DevilFruit") and tostring(d.DevilFruit.Value) or "None"
+    local gt = math.floor((workspace.DistributedGameTime or 0) + 0.5)
     return table.concat({
         "Player: "..plr.Name,
-        "Level: "..tostring(lv).." | Sea: "..CurrentSea,
+        "Level: "..tostring(lv).." | Sea: "..tostring(CurrentSea),
         "Beli: "..tostring(beli).." | Fragments: "..tostring(frag),
         "Race: "..tostring(race).." | Fruit: "..tostring(df),
         "Team: "..tostring(plr.Team and plr.Team.Name or "?"),
         "Ping: "..GetPing(),
-        "JobId: "..tostring(game.JobId),
-        "Players: "..#Players:GetPlayers().."/"..(Players.MaxPlayers or "?"),
-        "Server time: "..gh.."h "..gm.."m "..gs.."s",
+        "Players: "..#Players:GetPlayers(),
+        "Server: "..math.floor(gt/3600)%24 .."h "..math.floor(gt/60)%60 .."m",
         GetMoonText(),
         "Mirage: "..LocHas("Mirage Island"),
         "Kitsune: "..LocHas("Kitsune Island"),
-        "Prehistoric: "..LocHas("Prehistoric Island"),
         "Cake Prince: "..EnemyOrRep("Cake Prince"),
         "Dough King: "..EnemyOrRep("Dough King"),
         "rip_indra: "..EnemyOrRep("rip_indra True Form"),
@@ -762,44 +836,43 @@ local function BuildInfoText()
 end
 
 -- ====================== UI ======================
-local GGUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"))()
-if not GGUI or type(GGUI.MakeWindow) \~= "function" then
-    warn("[BF] GG-UI fail"); return
+local okUI, GGUI = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"))()
+end)
+if not okUI or not GGUI or type(GGUI.MakeWindow) \~= "function" then
+    warn("[BF] GG-UI fail", okUI, GGUI)
+    return
 end
 
 local Win = GGUI:MakeWindow({
     Title = "BF Hub",
-    SubTitle = "Sea "..CurrentSea.." | Lv."..(plr.Data and plr.Data.Level.Value or "?"),
+    SubTitle = "Sea "..tostring(CurrentSea).." | Lv."..tostring(GetLevel()),
     ScriptFolder = "BFHubFull"
 })
 
--- 1) INFO
+local function N(title, content)
+    pcall(function()
+        Win:Notify({ Title = tostring(title or ""), Content = tostring(content or ""), Duration = 5 })
+    end)
+end
+
+-- INFO
 local tInfo = Win:MakeTab({ Title = "Info" })
 tInfo:AddSection("Status")
-tInfo:AddButton({ Title = "Atualizar Info", Callback = function()
-    Win:Notify({ Title = "Info", Content = BuildInfoText(), Duration = 8 })
-end })
+tInfo:AddButton({ Title = "Atualizar Info", Callback = function() N("Info", BuildInfoText()) end })
 tInfo:AddButton({ Title = "Copy JobId", Callback = function()
     if setclipboard then setclipboard(tostring(game.JobId)) end
-    Win:Notify({ Title = "JobId", Content = tostring(game.JobId), Duration = 3 })
+    N("JobId", tostring(game.JobId))
 end })
 tInfo:AddSection("Eventos")
-tInfo:AddButton({ Title = "Checar Mirage / Kitsune / Moon", Callback = function()
-    Win:Notify({
-        Title = "Eventos",
-        Content = GetMoonText().."\nMirage "..LocHas("Mirage Island").."\nKitsune "..LocHas("Kitsune Island").."\nPrehistoric "..LocHas("Prehistoric Island"),
-        Duration = 5
-    })
+tInfo:AddButton({ Title = "Mirage / Kitsune / Moon", Callback = function()
+    N("Eventos", GetMoonText().."\nMirage "..LocHas("Mirage Island").."\nKitsune "..LocHas("Kitsune Island"))
 end })
-tInfo:AddButton({ Title = "Checar Bosses (Cake / Dough / Indra)", Callback = function()
-    Win:Notify({
-        Title = "Bosses",
-        Content = "Cake Prince "..EnemyOrRep("Cake Prince").."\nDough King "..EnemyOrRep("Dough King").."\nrip_indra "..EnemyOrRep("rip_indra True Form"),
-        Duration = 5
-    })
+tInfo:AddButton({ Title = "Bosses especiais", Callback = function()
+    N("Bosses", "Cake "..EnemyOrRep("Cake Prince").."\nDough "..EnemyOrRep("Dough King").."\nIndra "..EnemyOrRep("rip_indra True Form"))
 end })
 
--- 2) FARM
+-- FARM
 local tFarm = Win:MakeTab({ Title = "Farm" })
 tFarm:AddSection("Level")
 tFarm:AddToggle({ Title = "Auto Farm Level", Default = false, Callback = function(v)
@@ -813,7 +886,7 @@ tFarm:AddDropdown({
     Title = "Select Boss",
     Options = seaBossNames,
     Default = seaBossNames[1],
-    Callback = function(v) _G.FindBoss = v end
+    Callback = function(v) if v then _G.FindBoss = v end end
 })
 tFarm:AddToggle({ Title = "Auto Farm Boss", Default = false, Callback = function(v)
     _G.FarmBoss = v; if not v then _G.Seriality = false end
@@ -825,7 +898,7 @@ tFarm:AddToggle({ Title = "Auto Store Fruit", Default = false, Callback = functi
 tFarm:AddButton({ Title = "Collect Fruits Agora", Callback = function() collectFruits(true) end })
 tFarm:AddButton({ Title = "Store Fruits Agora", Callback = function() UpdStFruit() end })
 
--- 3) FARM SETTINGS
+-- FARM SETTINGS
 local tFarmSet = Win:MakeTab({ Title = "Farm Settings" })
 tFarmSet:AddSection("Combat")
 tFarmSet:AddToggle({ Title = "Seriality (Ataque)", Default = true, Callback = function(v) _G.Seriality = v end })
@@ -835,12 +908,12 @@ tFarmSet:AddDropdown({
     Title = "Arma",
     Options = {"Melee","Sword","Blox Fruit","Gun"},
     Default = "Melee",
-    Callback = function(v) _G.SelectWeapon = v; weaponSc(v) end
+    Callback = function(v) if v then _G.SelectWeapon = v; weaponSc(v) end end
 })
 tFarmSet:AddSlider({
     Title = "Altura no mob",
     Min = 5, Max = 60, Default = 30, Increment = 1,
-    Callback = function(v) _G.FarmDistance = v end
+    Callback = function(v) if v then _G.FarmDistance = v end end
 })
 tFarmSet:AddButton({ Title = "Parar todo farm", Callback = function()
     _G.Level=false; _G.AutoFarmNear=false; _G.FarmBoss=false
@@ -848,28 +921,22 @@ tFarmSet:AddButton({ Title = "Parar todo farm", Callback = function()
     shouldTween=false
 end })
 
--- 4) STATS
+-- STATS
 local tStats = Win:MakeTab({ Title = "Stats" })
 tStats:AddSection("Auto Stats")
 tStats:AddToggle({ Title = "Auto Stats", Default = false, Callback = function(v) _G.AutoStats = v end })
 tStats:AddSlider({ Title = "Pontos / rodada", Min = 1, Max = 10, Default = 3, Increment = 1,
-    Callback = function(v) _G.StatChunk = v end })
+    Callback = function(v) if v then _G.StatChunk = v end end })
 for _, s in ipairs({"Melee","Defense","Sword","Gun","Demon Fruit"}) do
-    tStats:AddToggle({ Title = s, Default = _G.StatsMap[s] or false,
+    tStats:AddToggle({ Title = s, Default = _G.StatsMap[s] == true,
         Callback = function(v) _G.StatsMap[s] = v end })
 end
 tStats:AddSection("Manual")
-tStats:AddButton({ Title = "+Melee x3", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("AddPoint","Melee",3) end)
-end })
-tStats:AddButton({ Title = "+Defense x3", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("AddPoint","Defense",3) end)
-end })
-tStats:AddButton({ Title = "Refund Stats", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","Refund","2") end)
-end })
+tStats:AddButton({ Title = "+Melee x3", Callback = function() CommF_("AddPoint","Melee",3) end })
+tStats:AddButton({ Title = "+Defense x3", Callback = function() CommF_("AddPoint","Defense",3) end })
+tStats:AddButton({ Title = "Refund Stats", Callback = function() CommF_("BlackbeardReward","Refund","2") end })
 
--- 5) ESP
+-- ESP
 local tESP = Win:MakeTab({ Title = "ESP" })
 tESP:AddSection("ESP")
 tESP:AddToggle({ Title = "Player ESP", Default = false, Callback = function(v) PlayerEsp = v end })
@@ -877,28 +944,22 @@ tESP:AddToggle({ Title = "Island ESP", Default = false, Callback = function(v) I
 tESP:AddToggle({ Title = "Devil Fruit ESP", Default = false, Callback = function(v) DevilFruitESP = v end })
 tESP:AddToggle({ Title = "Chest ESP", Default = false, Callback = function(v) ChestESP = v end })
 
--- 6) TELEPORT
+-- TELEPORT
 local tTP = Win:MakeTab({ Title = "Teleport" })
-tTP:AddSection("Ilhas — Sea "..CurrentSea)
+tTP:AddSection("Ilhas Sea "..tostring(CurrentSea))
 tTP:AddDropdown({ Title = "Ilha", Options = islandKeys, Default = islandKeys[1],
-    Callback = function(v) selIsland = v end })
+    Callback = function(v) if v then selIsland = v end end })
 tTP:AddButton({ Title = "Teleport snap", Callback = function()
     local cf = seaIslands[selIsland]; if cf then notween(cf) end
 end })
-tTP:AddButton({ Title = "Tween até ilha", Callback = function()
+tTP:AddButton({ Title = "Tween ate ilha", Callback = function()
     local cf = seaIslands[selIsland]
     if cf then shouldTween = true; _tp(cf) end
 end })
 tTP:AddSection("Mares")
-tTP:AddButton({ Title = "Sea 1", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("TravelMain") end)
-end })
-tTP:AddButton({ Title = "Sea 2", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("TravelDressrosa") end)
-end })
-tTP:AddButton({ Title = "Sea 3", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("TravelZou") end)
-end })
+tTP:AddButton({ Title = "Sea 1", Callback = function() CommF_("TravelMain") end })
+tTP:AddButton({ Title = "Sea 2", Callback = function() CommF_("TravelDressrosa") end })
+tTP:AddButton({ Title = "Sea 3", Callback = function() CommF_("TravelZou") end })
 tTP:AddSection("Servidor")
 tTP:AddButton({ Title = "Server Hop", Callback = function()
     pcall(function()
@@ -915,71 +976,45 @@ tTP:AddButton({ Title = "Rejoin", Callback = function()
     TeleportService:Teleport(game.PlaceId, plr)
 end })
 
--- 7) SHOP (sem codes)
+-- SHOP
 local tShop = Win:MakeTab({ Title = "Shop" })
 tShop:AddSection("Haki")
-tShop:AddButton({ Title = "Buy Buso", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BuyHaki","Buso") end)
-end })
-tShop:AddButton({ Title = "Buy Geppo", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BuyHaki","Geppo") end)
-end })
-tShop:AddButton({ Title = "Buy Soru", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BuyHaki","Soru") end)
-end })
-tShop:AddButton({ Title = "Buy Ken", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("KenTalk","Buy") end)
-end })
+tShop:AddButton({ Title = "Buy Buso", Callback = function() CommF_("BuyHaki","Buso") end })
+tShop:AddButton({ Title = "Buy Geppo", Callback = function() CommF_("BuyHaki","Geppo") end })
+tShop:AddButton({ Title = "Buy Soru", Callback = function() CommF_("BuyHaki","Soru") end })
+tShop:AddButton({ Title = "Buy Ken", Callback = function() CommF_("KenTalk","Buy") end })
 tShop:AddSection("Fighting Style")
 for _, s in ipairs({
     {"Black Leg","BuyBlackLeg"},{"Electro","BuyElectro"},{"Fishman Karate","BuyFishmanKarate"},
     {"Superhuman","BuySuperhuman"},{"Death Step","BuyDeathStep"},{"Sharkman Karate","BuySharkmanKarate"},
     {"Electric Claw","BuyElectricClaw"},{"Dragon Talon","BuyDragonTalon"},{"Godhuman","BuyGodhuman"},
 }) do
-    tShop:AddButton({ Title = "Buy "..s[1], Callback = function()
-        pcall(function() replicated.Remotes.CommF_:InvokeServer(s[2]) end)
-    end })
+    tShop:AddButton({ Title = "Buy "..s[1], Callback = function() CommF_(s[2]) end })
 end
-tShop:AddButton({ Title = "Buy Dragon Claw", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","DragonClaw","2") end)
-end })
+tShop:AddButton({ Title = "Buy Dragon Claw", Callback = function() CommF_("BlackbeardReward","DragonClaw","2") end })
 tShop:AddSection("Armas")
 for _, w in ipairs({
     "Cutlass","Katana","Iron Mace","Duel Katana","Triple Katana","Pipe",
     "Dual-Headed Blade","Bisento","Soul Cane","Slingshot","Musket",
     "Dual Flintlock","Flintlock","Refined Flintlock","Cannon",
 }) do
-    tShop:AddButton({ Title = "Buy "..w, Callback = function()
-        pcall(function() replicated.Remotes.CommF_:InvokeServer("BuyItem", w) end)
-    end })
+    tShop:AddButton({ Title = "Buy "..w, Callback = function() CommF_("BuyItem", w) end })
 end
-tShop:AddSection("Acessórios / Race")
-for _, a in ipairs({"Tomoe Ring","Black Cape","Swordsman Hat"}) do
-    tShop:AddButton({ Title = "Buy "..a, Callback = function()
-        pcall(function() replicated.Remotes.CommF_:InvokeServer("BuyItem", a) end)
-    end })
-end
-tShop:AddButton({ Title = "Reroll Race", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("BlackbeardReward","Reroll","2") end)
-end })
-tShop:AddButton({ Title = "Buy Ghoul Race", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("Ectoplasm","Change",4) end)
-end })
-tShop:AddButton({ Title = "Buy Cyborg Race", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("CyborgTrainer","Buy") end)
-end })
+tShop:AddSection("Race / Acc")
+tShop:AddButton({ Title = "Buy Tomoe Ring", Callback = function() CommF_("BuyItem","Tomoe Ring") end })
+tShop:AddButton({ Title = "Buy Black Cape", Callback = function() CommF_("BuyItem","Black Cape") end })
+tShop:AddButton({ Title = "Reroll Race", Callback = function() CommF_("BlackbeardReward","Reroll","2") end })
+tShop:AddButton({ Title = "Buy Ghoul Race", Callback = function() CommF_("Ectoplasm","Change",4) end })
+tShop:AddButton({ Title = "Buy Cyborg Race", Callback = function() CommF_("CyborgTrainer","Buy") end })
 
--- 8) MISC (codes aqui — remote Redeem correto)
+-- MISC
 local tMisc = Win:MakeTab({ Title = "Misc" })
 tMisc:AddSection("Codes")
 tMisc:AddButton({ Title = "Redeem All Codes", Callback = function()
     task.spawn(function()
         local ok, res = RedeemAllCodes()
-        if ok then
-            Win:Notify({ Title = "Codes", Content = "Enviados: "..tostring(res).." codes (Remotes.Redeem)", Duration = 4 })
-        else
-            Win:Notify({ Title = "Codes", Content = tostring(res), Duration = 4 })
-        end
+        if ok then N("Codes", "Enviados: "..tostring(res))
+        else N("Codes", tostring(res)) end
     end)
 end })
 tMisc:AddSection("Player")
@@ -987,25 +1022,16 @@ tMisc:AddToggle({ Title = "Anti-AFK", Default = true, Callback = function(v) _G.
 tMisc:AddToggle({ Title = "Infinite Jump", Default = false, Callback = function(v) _G.InfiniteJump = v end })
 tMisc:AddToggle({ Title = "FPS Boost", Default = false, Callback = function(v)
     if v then
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        for _, p in ipairs(workspace:GetDescendants()) do
-            if p:IsA("BasePart") and not (p.Parent and p.Parent:FindFirstChild("Humanoid")) then
-                pcall(function() p.Material = Enum.Material.SmoothPlastic; p.Reflectance = 0 end)
-            elseif p:IsA("Decal") or p:IsA("Texture") then
-                pcall(function() p.Transparency = 1 end)
-            end
-        end
+        pcall(function()
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
     end
 end })
 tMisc:AddSection("Team")
-tMisc:AddButton({ Title = "Set Pirates", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("SetTeam","Pirates") end)
-end })
-tMisc:AddButton({ Title = "Set Marines", Callback = function()
-    pcall(function() replicated.Remotes.CommF_:InvokeServer("SetTeam","Marines") end)
-end })
+tMisc:AddButton({ Title = "Set Pirates", Callback = function() CommF_("SetTeam","Pirates") end })
+tMisc:AddButton({ Title = "Set Marines", Callback = function() CommF_("SetTeam","Marines") end })
 tMisc:AddSection("Util")
 tMisc:AddButton({ Title = "Remove Fog", Callback = function()
     pcall(function()
@@ -1014,5 +1040,5 @@ tMisc:AddButton({ Title = "Remove Fog", Callback = function()
     end)
 end })
 
-Win:Notify({ Title = "BF Hub", Content = "Info → Farm → Settings → ... | Redeem = Remotes.Redeem", Duration = 4 })
-print("[BF Hub] tabs ok | Sea "..CurrentSea)
+N("BF Hub", "Sea "..tostring(CurrentSea).." | nil-safe")
+print("[BF Hub] loaded Sea "..tostring(CurrentSea))
