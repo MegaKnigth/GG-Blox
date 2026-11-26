@@ -1,16 +1,13 @@
-
-
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 task.wait(0.5)
 
 -- ════════════════════════════════════════
---  SERVIÇOS & GLOBALS
+--  SERVIÇOS
 -- ════════════════════════════════════════
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
-local Workspace         = game:GetService("Workspace")
 local UserInputService  = game:GetService("UserInputService")
 local VirtualUser       = game:GetService("VirtualUser")
 
@@ -25,34 +22,27 @@ end
 if LP.Character then RefreshChar(LP.Character) end
 LP.CharacterAdded:Connect(RefreshChar)
 
--- remotes
-local Remotes        = ReplicatedStorage.Remotes
-local Enemies        = Workspace:WaitForChild("Enemies")
-local Characters     = Workspace:FindFirstChild("Characters") or Workspace
-local NetFolder      = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
-local RERegisterAtk  = NetFolder:WaitForChild("RE/RegisterAttack")
-local RERegisterHit  = NetFolder:WaitForChild("RE/RegisterHit")
-local NetSeed        = NetFolder:FindFirstChild("seed")  -- anti-detecção extra
+local Remotes       = ReplicatedStorage.Remotes
+local Enemies       = workspace:WaitForChild("Enemies")
+local NetFolder     = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+local RERegAtk      = NetFolder:WaitForChild("RE/RegisterAttack")
+local RERegHit      = NetFolder:WaitForChild("RE/RegisterHit")
+local NetSeed       = NetFolder:FindFirstChild("seed")
 
--- XOR anti-detecção (igual Banana t55)
+-- XOR anti-detecção (Banana t55)
 local xorRemote, xorAttr
 local function FindXorRemote()
-    for _, folder in ipairs({
-        ReplicatedStorage:FindFirstChild("Util"),
-        ReplicatedStorage:FindFirstChild("Common"),
-        ReplicatedStorage:FindFirstChild("Remotes"),
-        ReplicatedStorage:FindFirstChild("Assets"),
-        ReplicatedStorage:FindFirstChild("FX"),
-    }) do
-        if not folder then continue end
-        for _, child in ipairs(folder:GetChildren()) do
-            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
-                xorRemote = child; xorAttr = child:GetAttribute("Id")
+    for _, fname in ipairs({"Util","Common","Remotes","Assets","FX"}) do
+        local f = ReplicatedStorage:FindFirstChild(fname)
+        if not f then continue end
+        for _, c in ipairs(f:GetChildren()) do
+            if c:IsA("RemoteEvent") and c:GetAttribute("Id") then
+                xorRemote=c; xorAttr=c:GetAttribute("Id")
             end
         end
-        folder.ChildAdded:Connect(function(child)
-            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
-                xorRemote = child; xorAttr = child:GetAttribute("Id")
+        f.ChildAdded:Connect(function(c)
+            if c:IsA("RemoteEvent") and c:GetAttribute("Id") then
+                xorRemote=c; xorAttr=c:GetAttribute("Id")
             end
         end)
     end
@@ -76,54 +66,54 @@ if getsenv then
     end)
 end
 
--- PlaceId detection
-local World1 = game.PlaceId == 2753915549 or game.PlaceId == 85211729168715
-local World2 = game.PlaceId == 4442272183 or game.PlaceId == 79091703265657
-local World3 = game.PlaceId == 7449423635 or game.PlaceId == 100117331123089
+local World1 = game.PlaceId==2753915549 or game.PlaceId==85211729168715
+local World2 = game.PlaceId==4442272183 or game.PlaceId==79091703265657
+local World3 = game.PlaceId==7449423635 or game.PlaceId==100117331123089
 local CurrentSea = World1 and 1 or World2 and 2 or World3 and 3 or 1
 
 pcall(function() Remotes.CommF_:InvokeServer("SetTeam","Pirates") end)
 pcall(function() require(ReplicatedStorage.Util.CameraShaker):Stop() end)
 
 -- ════════════════════════════════════════
---  ESTADO GLOBAL
+--  GLOBALS
 -- ════════════════════════════════════════
-_G.Seriality        = false
-_G.Level            = false   -- Auto Farm Level
-_G.AutoFarmNear     = false   -- Farm mobs próximos sem quest
-_G.FarmBoss         = false
-_G.BringMob         = true
-_G.SelectWeapon     = "Melee"
-_G.FarmDistance     = 25
-_G.TweenSpeedNear   = 180
-_G.TweenSpeedFar    = 300
-_G.AutoFarmChest    = false
-_G.AutoStats        = false
-_G.AutoSnipeFruit   = false
-_G.ESP_Players      = false
-_G.ESP_Mobs         = false
-_G.ESP_Chests       = false
-_G.ESP_Fruits       = false
-_G.AntiAFK          = true
-_G.WalkSpeed        = 16
-_G.JumpPower        = 50
-_G.InfiniteJump     = false
-_G.FPSBoost         = false
-_G.StatsMap         = {Melee=true,Defense=true,Sword=false,Gun=false,["Demon Fruit"]=false}
-_G.StatChunk        = 3
-_G.FindBoss         = "The Gorilla King"
-_G.AutoBuso         = true
+_G.Seriality    = false
+_G.Level        = false
+_G.AutoFarmNear = false
+_G.FarmBoss     = false
+_G.BringMob     = true
+_G.SelectWeapon = "Melee"
+_G.FarmDistance = 25
+_G.AutoFarmChest= false
+_G.AutoStats    = false
+_G.AutoSnipeFruit=false
+_G.ESP_Players  = false
+_G.ESP_Mobs     = false
+_G.ESP_Chests   = false
+_G.ESP_Fruits   = false
+_G.AntiAFK      = true
+_G.InfiniteJump = false
+_G.FPSBoost     = false
+_G.StatsMap     = {Melee=true,Defense=true,Sword=false,Gun=false,["Demon Fruit"]=false}
+_G.StatChunk    = 3
+_G.FindBoss     = "The Gorilla King"
+_G.AutoBuso     = true
+_G.KillAuraPlayers = false
+getgenv().TweenSpeedNear = 180
+getgenv().TweenSpeedFar  = 150   -- mesmo default do Banana
+getgenv().OnFarm = false
+getgenv()._G_WasOnFarm = false
 
 -- quest vars
 local Mon, LevelQuest, NameQuest, NameMon
 local CFrameQuest, CFrameMon
-local PosMon = nil     -- posição pivot do bring (igual Banana)
-local _B = true        -- BringEnemy ativo (igual Banana _B)
+local PosMon = nil
+local _B = true
 
 -- ════════════════════════════════════════
 --  SHOULDTWEEN / BODYCLIP
 --  Exatamente como o Banana:
---  shouldTween=true enquanto qualquer farm ativo
+--  shouldTween atualizado num loop separado
 --  BodyClip = BodyVelocity no HRP do PLAYER
 -- ════════════════════════════════════════
 local shouldTween = false
@@ -142,14 +132,9 @@ task.spawn(function()
                     if not HRP:FindFirstChild("BodyClip") then
                         local bv       = Instance.new("BodyVelocity")
                         bv.Name        = "BodyClip"
-                        bv.MaxForce    = Vector3.new(1e5,1e5,1e5)
+                        bv.MaxForce    = Vector3.new(100000,100000,100000)
                         bv.Velocity    = Vector3.zero
                         bv.Parent      = HRP
-                    end
-                end
-                if Char then
-                    for _, v in ipairs(Char:GetDescendants()) do
-                        if v:IsA("BasePart") then v.CanCollide = false end
                     end
                 end
             else
@@ -164,76 +149,148 @@ task.spawn(function()
 end)
 
 -- ════════════════════════════════════════
---  TWEEN PLAYER
---  Part GLOBAL — não recria por mob.
---  Só recria se destino mudou mais que threshold.
---  Exatamente como o Banana _tp.
+--  TWEEN PLAYER — FIEL AO BANANA
+--
+--  Part fica no WORKSPACE (não no Char).
+--  Loop cola HRP na Part com tolerância 200 studs
+--  (se HRP sair >200 da Part, reseta Part pro HRP).
+--  OnFarm = true DEPOIS que tween completa (task.spawn).
+--  shouldTween=false cancela o tween no meio.
+--  notween = snap direto no HRP.
 -- ════════════════════════════════════════
-local TweenPart = Instance.new("Part")
-TweenPart.Name        = "BF_TweenPart"
-TweenPart.Size        = Vector3.new(1,1,1)
-TweenPart.Anchored    = true
-TweenPart.Transparency= 1
-TweenPart.CanCollide  = false
-TweenPart.Parent      = Workspace
+local Part = Instance.new("Part", workspace)
+Part.Size         = Vector3.new(1,1,1)
+Part.Name         = "BF_TweenAnchor"
+Part.Anchored     = true
+Part.CanCollide   = false
+Part.CanTouch     = false
+Part.Transparency = 1
 
--- cola HRP na Part via Stepped (igual Banana)
-RunService.Stepped:Connect(function()
-    pcall(function()
-        if shouldTween and HRP and TweenPart then
-            HRP.CFrame = TweenPart.CFrame
-            HRP.AssemblyLinearVelocity = Vector3.zero
-        end
-    end)
-end)
-
-local currentTween = nil
-local lastDest     = nil
-local DEST_THRESH  = 10   -- studs: só recria se destino mudou mais que isso
-
-local function _tp(dest)
-    if not dest then return end
-    if typeof(dest) == "Vector3" then dest = CFrame.new(dest) end
-    if not HRP then return end
-
-    TweenPart.CFrame = HRP.CFrame  -- reseta Part pra posição atual antes de twenar
-
-    -- não recria se destino é praticamente o mesmo
-    if lastDest then
-        local delta = (lastDest.Position - dest.Position).Magnitude
-        if delta < DEST_THRESH and currentTween
-        and currentTween.PlaybackState == Enum.PlaybackState.Playing then
-            return
-        end
-    end
-
-    if currentTween then currentTween:Cancel() end
-    lastDest = dest
-
-    local dist = (TweenPart.Position - dest.Position).Magnitude
-    local spd  = dist <= 15 and (_G.TweenSpeedNear or 180) or (_G.TweenSpeedFar or 300)
-    local ti   = TweenInfo.new(dist / spd, Enum.EasingStyle.Linear)
-
-    currentTween = TweenService:Create(TweenPart, ti, {CFrame = dest})
-
-    task.spawn(function()
-        while currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing do
-            if not shouldTween then currentTween:Cancel(); break end
-            task.wait(0.05)
-        end
-    end)
-
-    currentTween:Play()
-    return currentTween
+-- limpa duplicata
+do
+    local existing = workspace:FindFirstChild(Part.Name)
+    if existing and existing ~= Part then existing:Destroy() end
 end
 
-local function notween(dest)
-    if HRP then HRP.CFrame = dest end
+-- loop que sincroniza HRP com Part (igual Banana)
+task.spawn(function()
+    while true do
+        task.wait()
+        pcall(function()
+            if getgenv().OnFarm then
+                if not getgenv()._G_WasOnFarm then
+                    getgenv()._G_WasOnFarm = true
+                end
+                if Part and Part.Parent == workspace then
+                    local pp = LP.Character and LP.Character.PrimaryPart
+                    if pp then
+                        if (pp.Position - Part.Position).Magnitude <= 200 then
+                            -- HRP cola na Part
+                            pp.CFrame = CFrame.new(Part.Position)
+                        else
+                            -- muito longe: reseta Part pro HRP (lagback recovery)
+                            Part.CFrame = pp.CFrame
+                        end
+                    end
+                end
+                -- noclip enquanto OnFarm
+                local c = LP.Character
+                if c then
+                    for _, child in pairs(c:GetChildren()) do
+                        if child:IsA("BasePart") then
+                            child.CanCollide = false
+                        end
+                    end
+                end
+            elseif getgenv()._G_WasOnFarm then
+                getgenv()._G_WasOnFarm = false
+                local c = LP.Character
+                if c then
+                    for _, child in pairs(c:GetChildren()) do
+                        if child:IsA("BasePart") then
+                            child.CanCollide = true
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- OnFarm updater (igual Banana)
+task.spawn(function()
+    while task.wait() do
+        if Part and Part.Parent == workspace then
+            if shouldTween then
+                getgenv().OnFarm = true
+            else
+                getgenv().OnFarm = false
+            end
+        else
+            getgenv().OnFarm = false
+        end
+    end
+end)
+
+local function _tp(p53)
+    local cFrame3
+    if typeof(p53) == "Vector3" then
+        cFrame3 = CFrame.new(p53)
+    elseif typeof(p53) == "CFrame" then
+        cFrame3 = p53
+    elseif p53 and p53.CFrame then
+        cFrame3 = p53.CFrame
+    end
+    if not cFrame3 then return end
+    if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return end
+
+    local HumanoidRootPart = LP.Character.HumanoidRootPart
+
+    -- desliga OnFarm durante o tween (igual Banana)
+    getgenv().OnFarm = false
+
+    local Magnitude = (cFrame3.Position - HumanoidRootPart.Position).Magnitude
+    local spd = Magnitude <= 15
+        and (getgenv().TweenSpeedNear or 180)
+        or  (getgenv().TweenSpeedFar  or 150)
+    local tweenInfo = TweenInfo.new(Magnitude / spd, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(Part, tweenInfo, {
+        CFrame = CFrame.new(cFrame3.Position)
+    })
+
+    -- se sentado: ajusta Y da Part antes de twenar (igual Banana)
+    if LP.Character.Humanoid.Sit then
+        Part.CFrame = CFrame.new(Part.Position.X, cFrame3.Y, Part.Position.Z)
+    end
+
+    tween:Play()
+
+    -- task.spawn monitora: cancela se shouldTween=false,
+    -- liga OnFarm=true quando completa (igual Banana)
+    task.spawn(function()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
+            if shouldTween then
+                task.wait(0.1)
+            else
+                tween:Cancel()
+                break
+            end
+        end
+        getgenv().OnFarm = true
+    end)
+
+    return tween
+end
+
+local function notween(cf)
+    if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        LP.Character.HumanoidRootPart.CFrame = cf
+    end
 end
 
 local function StopTween()
-    if currentTween then currentTween:Cancel(); currentTween = nil end
-    lastDest = nil
+    getgenv().OnFarm = false
+    shouldTween = false
 end
 
 -- ════════════════════════════════════════
@@ -244,11 +301,6 @@ local function EquipWeapon(tip)
     if not Char or not Humanoid then return end
     local cur = Char:FindFirstChildOfClass("Tool")
     if cur and cur.ToolTip == tip then return end
-    -- character primeiro
-    for _, t in ipairs(Char:GetChildren()) do
-        if t:IsA("Tool") and t.ToolTip == tip then return end -- já equipada
-    end
-    -- backpack
     local bp = LP.Backpack
     if bp then
         for _, t in ipairs(bp:GetChildren()) do
@@ -260,10 +312,9 @@ local function EquipWeapon(tip)
 end
 
 -- ════════════════════════════════════════
---  BRING ENEMY
---  Igual ao Banana: BodyVelocity nos mobs,
---  sethiddenproperty, isnetworkowner check,
---  traz todos do mesmo nome pro PosMon
+--  BRING ENEMY — Banana fiel
+--  BodyVelocity nos mobs, sethiddenproperty,
+--  isnetworkowner, traz todos do mesmo nome
 -- ════════════════════════════════════════
 local function isNetOwner(part)
     if isnetworkowner then return isnetworkowner(part) end
@@ -277,8 +328,9 @@ BringEnemy = function(mainMob)
             sethiddenproperty(LP, "SimulationRadius", math.huge)
         end
 
-        local pivot = PosMon
+        local pivot    = PosMon
         local mainName = mainMob and mainMob.Name or nil
+        local allClose = false
 
         for _, child in ipairs(Enemies:GetChildren()) do
             if mainName and child.Name ~= mainName then continue end
@@ -298,8 +350,10 @@ BringEnemy = function(mainMob)
                 bv.Parent      = hrp
             end
 
-            -- só move se for network owner (igual Banana)
-            if dist > 10 and isNetOwner(hrp) then
+            if dist <= 10 then allClose = true end
+
+            -- move só se não estiver já agrupado E for network owner
+            if not allClose and isNetOwner(hrp) then
                 hrp.CFrame = CFrame.new(pivot)
             end
 
@@ -307,21 +361,26 @@ BringEnemy = function(mainMob)
             hum.WalkSpeed  = 0
             hum.JumpPower  = 0
         end
+
+        -- mob principal também
+        if mainMob and mainMob:FindFirstChild("HumanoidRootPart") then
+            mainMob.HumanoidRootPart.CanCollide = false
+            if mainMob:FindFirstChild("Humanoid") then
+                mainMob.Humanoid.WalkSpeed = 0
+                mainMob.Humanoid.JumpPower = 0
+            end
+        end
     end)
 end
 
 -- ════════════════════════════════════════
---  T9.KILL — base de posicionamento
---  SetAttribute("Locked") = ponto fixo por mob
---  Exatamente como o Banana
+--  T9.KILL — SetAttribute Locked, ponto fixo
 -- ════════════════════════════════════════
 local function Kill(mob, flag)
     if not mob or not flag then return end
-    -- salva CFrame do mob UMA VEZ (Locked attribute)
     if not mob:GetAttribute("Locked") then
         mob:SetAttribute("Locked", mob.HumanoidRootPart.CFrame)
     end
-
     PosMon = mob:GetAttribute("Locked").Position
     BringEnemy(mob)
     EquipWeapon(_G.SelectWeapon)
@@ -330,17 +389,16 @@ local function Kill(mob, flag)
     local toolTip = tool and tool.ToolTip or ""
 
     if toolTip == "Blox Fruit" then
-        _tp(mob.HumanoidRootPart.CFrame * CFrame.new(0,30,0) * CFrame.Angles(0, math.rad(90), 0))
+        _tp(mob.HumanoidRootPart.CFrame * CFrame.new(0,30,0) * CFrame.Angles(0,math.rad(90),0))
     else
-        _tp(mob.HumanoidRootPart.CFrame * CFrame.new(0,10,0) * CFrame.Angles(0, math.rad(180), 0))
+        _tp(mob.HumanoidRootPart.CFrame * CFrame.new(0,_G.FarmDistance,0) * CFrame.Angles(0,math.rad(180),0))
     end
 end
 
 -- ════════════════════════════════════════
---  ATAQUE MULTI-MOB
---  t54: GetNearbyTargets + ExecuteFastAttack
---  Pega TODOS os mobs em raio 60 de uma vez
---  t55: Heartbeat XOR+seed (anti-detecção)
+--  ATAQUE — do teu script (teu AttackNoCoolDown)
+--  com multi-mob: pega TODOS em raio 60
+--  + t55 XOR+seed no Heartbeat
 -- ════════════════════════════════════════
 local function GetNearbyTargets(radius)
     if not Char then return {} end
@@ -355,17 +413,14 @@ local function GetNearbyTargets(radius)
             table.insert(targets, child)
         end
     end
-    -- players se kill aura ativa
     if _G.KillAuraPlayers then
-        local chars = Workspace:FindFirstChild("Characters")
-        if chars then
-            for _, child in ipairs(chars:GetChildren()) do
-                local hum = child:FindFirstChild("Humanoid")
-                local hrp = child:FindFirstChild("HumanoidRootPart")
-                if hum and hrp and hum.Health > 0
-                   and Players:GetPlayerFromCharacter(child) ~= LP then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and hum.Health > 0 then
                     if (hrp.Position - Char:GetPivot().Position).Magnitude <= (radius or 60) then
-                        table.insert(targets, child)
+                        table.insert(targets, p.Character)
                     end
                 end
             end
@@ -377,8 +432,7 @@ end
 local function GetTargetParts(targets)
     local parts  = {}
     local mainPt = nil
-    local limbs  = {"RightLowerArm","RightUpperArm","LeftLowerArm",
-                     "LeftUpperArm","RightHand","LeftHand"}
+    local limbs  = {"RightLowerArm","RightUpperArm","LeftLowerArm","LeftUpperArm","RightHand","LeftHand"}
     for _, mob in ipairs(targets) do
         local part = mob:FindFirstChild(limbs[math.random(#limbs)])
                   or mob:FindFirstChild("Head")
@@ -391,7 +445,7 @@ local function GetTargetParts(targets)
     return parts, mainPt
 end
 
--- t54: fast attack multi-mob (loop quase instantâneo, igual Banana Rate=2e-9)
+-- t54: fast attack multi-mob
 local function ExecuteFastAttack()
     if not Char or not Char:FindFirstChildOfClass("Tool") then return end
     local targets = GetNearbyTargets(60)
@@ -399,55 +453,47 @@ local function ExecuteFastAttack()
     local parts, mainPt = GetTargetParts(targets)
     if not mainPt then return end
 
-    RERegisterAtk:FireServer(2e-9)
+    RERegAtk:FireServer(2e-9)
 
     if combatFlag and SendHitsToServer then
         SendHitsToServer(mainPt, parts)
     else
-        RERegisterHit:FireServer(mainPt, parts)
+        RERegHit:FireServer(mainPt, parts)
     end
 end
 
--- t55: Heartbeat XOR+seed (extra anti-detecção, igual Banana)
+-- t55: Heartbeat XOR+seed
 local function ExecuteXorAttack()
     if not Char or not Char:FindFirstChildOfClass("Tool") then return end
-    local tool = Char:FindFirstChildOfClass("Tool")
-    if not tool then return end
-    local wType = tool:GetAttribute("WeaponType")
+    local tool  = Char:FindFirstChildOfClass("Tool")
+    local wType = tool and tool:GetAttribute("WeaponType")
     if wType ~= "Melee" and wType ~= "Sword" then return end
 
     local targets = GetNearbyTargets(60)
     if #targets == 0 then return end
-
     local parts, mainPt = GetTargetParts(targets)
     if not mainPt then return end
 
-    -- seed invoke (anti-detecção)
     local seedVal = 0
-    if NetSeed then
-        pcall(function() seedVal = NetSeed:InvokeServer() or 0 end)
-    end
+    if NetSeed then pcall(function() seedVal = NetSeed:InvokeServer() or 0 end) end
 
-    RERegisterAtk:FireServer()
+    RERegAtk:FireServer()
     local head = targets[1]:FindFirstChild("Head")
-    if head then
-        RERegisterHit:FireServer(head, parts, {})
-    end
+    if head then RERegHit:FireServer(head, parts, {}) end
 
-    -- XOR extra (igual Banana cloneref+bit32)
     if xorRemote and xorAttr and cloneref then
         pcall(function()
-            local v1623  = math.floor(Workspace:GetServerTimeNow() / 10 % 10) + 1
-            local RegHit = string.gsub("RE/RegisterHit", ".", function(c)
-                return string.char(bit32.bxor(string.byte(c), v1623))
+            local v = math.floor(workspace:GetServerTimeNow()/10%10)+1
+            local rh = string.gsub("RE/RegisterHit",".",function(c)
+                return string.char(bit32.bxor(string.byte(c),v))
             end)
-            local xorVal = bit32.bxor(xorAttr + 909090, seedVal * 2)
-            cloneref(xorRemote):FireServer(RegHit, xorVal, head, parts)
+            local xv = bit32.bxor(xorAttr+909090, seedVal*2)
+            cloneref(xorRemote):FireServer(rh, xv, head, parts)
         end)
     end
 end
 
--- Blox Fruit M1
+-- Blox Fruit M1 (do teu script, igual Banana)
 local function Actived()
     pcall(function()
         local tool = Char and Char:FindFirstChildOfClass("Tool")
@@ -461,19 +507,18 @@ local function Actived()
 end
 
 local function get_Monster()
-    if not Char then return false end
+    if not Char or not HRP then return false end
     for _, child in ipairs(Enemies:GetChildren()) do
         local head = child:FindFirstChild("Head") or child:FindFirstChild("UpperTorso")
-        if child:FindFirstChild("HumanoidRootPart")
-        and head
-        and (head.Position - HRP.Position).Magnitude <= 50 then
-            return true, head.Position
+        if child:FindFirstChild("HumanoidRootPart") and head
+           and (head.Position - HRP.Position).Magnitude <= 50 then
+            return true
         end
     end
     return false
 end
 
--- t54 loop
+-- t54 loop (praticamente instantâneo, igual Banana Rate=2e-9)
 task.spawn(function()
     while task.wait(2e-9) do
         pcall(function()
@@ -489,15 +534,12 @@ RunService.Heartbeat:Connect(function()
         if not _G.Seriality then return end
         ExecuteXorAttack()
         local tool = Char and Char:FindFirstChildOfClass("Tool")
-        if tool and tool.ToolTip == "Blox Fruit" then
-            local ok, pos = get_Monster()
-            if ok then
-                local lcr = tool:FindFirstChild("LeftClickRemote")
-                if lcr then
-                    Actived()
-                    lcr:FireServer(Vector3.new(0.01,-500,0.01), 1, true)
-                    lcr:FireServer(false)
-                end
+        if tool and tool.ToolTip == "Blox Fruit" and get_Monster() then
+            local lcr = tool:FindFirstChild("LeftClickRemote")
+            if lcr then
+                Actived()
+                lcr:FireServer(Vector3.new(0.01,-500,0.01),1,true)
+                lcr:FireServer(false)
             end
         end
     end)
@@ -522,9 +564,9 @@ local function GetQuestTitle()
     if tracked and tracked.Enabled then
         local f = tracked:FindFirstChild("Frame")
         if f and f.Visible then
-            local h   = f:FindFirstChild("header")
-            local lbl = h and h:FindFirstChild("textLabel")
-            if lbl and lbl.Text ~= "" then return tostring(lbl.Text) end
+            local h = f:FindFirstChild("header")
+            local l = h and h:FindFirstChild("textLabel")
+            if l and l.Text ~= "" then return tostring(l.Text) end
         end
     end
     local ok, t = pcall(function()
@@ -536,14 +578,14 @@ end
 local function HasCorrectQuest(name)
     if not name or not HasQuestVisible() then return false end
     local t = GetQuestTitle()
-    return t ~= "" and string.find(t:lower(), name:lower(), 1, true) ~= nil
+    return t ~= "" and t:lower():find(name:lower(), 1, true) ~= nil
 end
 
 local function StartQuestWait(qname, qdata, mobName)
     if HasCorrectQuest(mobName) then return true end
     pcall(function() Remotes.CommF_:InvokeServer("StartQuest", qname, qdata) end)
     local t0 = os.clock()
-    repeat task.wait(0.2) until HasCorrectQuest(mobName) or os.clock()-t0 > 3
+    repeat task.wait(0.2) until HasCorrectQuest(mobName) or os.clock()-t0>3
     return HasCorrectQuest(mobName)
 end
 
@@ -571,10 +613,10 @@ local function CheckQuest()
         elseif lv<=299 then Mon,LevelQuest,NameQuest,NameMon="Gladiator",2,"ColosseumQuest","Gladiator"; CFrameQuest=CFrame.new(-1580.05,6.35,-2986.48); CFrameMon=CFrame.new(-1292.84,56.38,-3339.03)
         elseif lv<=324 then Mon,LevelQuest,NameQuest,NameMon="Military Soldier",1,"MagmaQuest","Military Soldier"; CFrameQuest=CFrame.new(-5313.37,10.95,8515.29); CFrameMon=CFrame.new(-5411.16,11.08,8454.29)
         elseif lv<=374 then Mon,LevelQuest,NameQuest,NameMon="Military Spy",2,"MagmaQuest","Military Spy"; CFrameQuest=CFrame.new(-5313.37,10.95,8515.29); CFrameMon=CFrame.new(-5802.87,86.26,8828.86)
-        elseif lv<=399 then Mon,LevelQuest,NameQuest,NameMon="Fishman Warrior",1,"FishmanQuest","Fishman Warrior"; CFrameQuest=CFrame.new(61122.65,18.5,1569.4); CFrameMon=CFrame.new(60878.3,18.48,1543.76); if _G.Level then pcall(function() Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(61163.85,11.68,1819.78)) end) end
-        elseif lv<=449 then Mon,LevelQuest,NameQuest,NameMon="Fishman Commando",2,"FishmanQuest","Fishman Commando"; CFrameQuest=CFrame.new(61122.65,18.5,1569.4); CFrameMon=CFrame.new(61922.63,18.48,1493.93); if _G.Level then pcall(function() Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(61163.85,11.68,1819.78)) end) end
-        elseif lv<=474 then Mon,LevelQuest,NameQuest,NameMon="God's Guard",1,"SkyExp1Quest","God's Guard"; CFrameQuest=CFrame.new(-4721.89,843.87,-1949.97); CFrameMon=CFrame.new(-4710.04,845.28,-1927.31); if _G.Level then pcall(function() Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-4607.82,872.54,-1667.56)) end) end
-        elseif lv<=524 then Mon,LevelQuest,NameQuest,NameMon="Shanda",2,"SkyExp1Quest","Shanda"; CFrameQuest=CFrame.new(-7859.1,5544.19,-381.48); CFrameMon=CFrame.new(-7678.49,5566.4,-497.22); if _G.Level then pcall(function() Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-7894.62,5547.14,-380.29)) end) end
+        elseif lv<=399 then Mon,LevelQuest,NameQuest,NameMon="Fishman Warrior",1,"FishmanQuest","Fishman Warrior"; CFrameQuest=CFrame.new(61122.65,18.5,1569.4); CFrameMon=CFrame.new(60878.3,18.48,1543.76)
+        elseif lv<=449 then Mon,LevelQuest,NameQuest,NameMon="Fishman Commando",2,"FishmanQuest","Fishman Commando"; CFrameQuest=CFrame.new(61122.65,18.5,1569.4); CFrameMon=CFrame.new(61922.63,18.48,1493.93)
+        elseif lv<=474 then Mon,LevelQuest,NameQuest,NameMon="God's Guard",1,"SkyExp1Quest","God's Guard"; CFrameQuest=CFrame.new(-4721.89,843.87,-1949.97); CFrameMon=CFrame.new(-4710.04,845.28,-1927.31)
+        elseif lv<=524 then Mon,LevelQuest,NameQuest,NameMon="Shanda",2,"SkyExp1Quest","Shanda"; CFrameQuest=CFrame.new(-7859.1,5544.19,-381.48); CFrameMon=CFrame.new(-7678.49,5566.4,-497.22)
         elseif lv<=549 then Mon,LevelQuest,NameQuest,NameMon="Royal Squad",1,"SkyExp2Quest","Royal Squad"; CFrameQuest=CFrame.new(-7906.82,5634.66,-1411.99); CFrameMon=CFrame.new(-7624.25,5658.13,-1467.35)
         elseif lv<=624 then Mon,LevelQuest,NameQuest,NameMon="Royal Soldier",2,"SkyExp2Quest","Royal Soldier"; CFrameQuest=CFrame.new(-7906.82,5634.66,-1411.99); CFrameMon=CFrame.new(-7836.75,5645.66,-1790.62)
         elseif lv<=649 then Mon,LevelQuest,NameQuest,NameMon="Galley Pirate",1,"FountainQuest","Galley Pirate"; CFrameQuest=CFrame.new(5259.82,37.35,4050.03); CFrameMon=CFrame.new(5551.02,78.9,3930.41)
@@ -592,7 +634,7 @@ local function CheckQuest()
         elseif lv<=1049 then Mon,LevelQuest,NameQuest,NameMon="Snow Trooper",1,"SnowMountainQuest","Snow Trooper"; CFrameQuest=CFrame.new(609.86,400.12,-5372.26); CFrameMon=CFrame.new(549.15,427.39,-5563.7)
         elseif lv<=1099 then Mon,LevelQuest,NameQuest,NameMon="Winter Warrior",2,"SnowMountainQuest","Winter Warrior"; CFrameQuest=CFrame.new(609.86,400.12,-5372.26); CFrameMon=CFrame.new(1142.75,475.64,-5199.42)
         elseif lv<=1174 then Mon,LevelQuest,NameQuest,NameMon="Horned Warrior",2,"IceSideQuest","Horned Warrior"; CFrameQuest=CFrame.new(-6064.07,15.24,-4902.98); CFrameMon=CFrame.new(-6341.37,15.95,-5723.16)
-        elseif lv<=1249 then Mon,LevelQuest,NameQuest,NameMon="Ship Deckhand",1,"ShipQuest1","Ship Deckhand"; CFrameQuest=CFrame.new(1008,125,32911); CFrameMon=CFrame.new(1180,140,32990); if _G.Level then pcall(function() Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(923.21,126.98,32852.83)) end) end
+        elseif lv<=1249 then Mon,LevelQuest,NameQuest,NameMon="Ship Deckhand",1,"ShipQuest1","Ship Deckhand"; CFrameQuest=CFrame.new(1008,125,32911); CFrameMon=CFrame.new(1180,140,32990)
         elseif lv<=1499 then Mon,LevelQuest,NameQuest,NameMon="Sea Soldier",1,"FrostQuest","Sea Soldier"; CFrameQuest=CFrame.new(-3054,237,-10145); CFrameMon=CFrame.new(-3300,240,-10400)
         end
     elseif World3 then
@@ -614,56 +656,41 @@ end
 --  FARM LOOP PRINCIPAL
 -- ════════════════════════════════════════
 local Sec = 0.1
-
 task.spawn(function()
     while task.wait(Sec) do
-        if not _G.Level then _G.Seriality = false; continue end
+        if not _G.Level then _G.Seriality=false; continue end
         pcall(function()
             if not HRP then return end
             CheckQuest()
-
-            -- quest errada: abandona
             if HasQuestVisible() and not HasCorrectQuest(NameMon) then
-                _G.Seriality = false
+                _G.Seriality=false
                 Remotes.CommF_:InvokeServer("AbandonQuest")
                 task.wait(0.2); return
             end
-
-            -- sem quest: vai pegar
             if not HasCorrectQuest(NameMon) then
-                _G.Seriality = false
-                local distNPC = CFrameQuest and (HRP.Position - CFrameQuest.Position).Magnitude or 999
-                if distNPC > 15 then
-                    _tp(CFrameQuest)
-                else
-                    StartQuestWait(NameQuest, LevelQuest, NameMon)
-                end
+                _G.Seriality=false
+                local distNPC = CFrameQuest and (HRP.Position-CFrameQuest.Position).Magnitude or 999
+                if distNPC > 15 then _tp(CFrameQuest)
+                else StartQuestWait(NameQuest,LevelQuest,NameMon) end
                 return
             end
-
-            -- procura mob mais próximo
             local target, bestD = nil, math.huge
             for _, v in ipairs(Enemies:GetChildren()) do
-                if v.Name == Mon then
-                    local hum = v:FindFirstChild("Humanoid")
-                    local hrp = v:FindFirstChild("HumanoidRootPart")
-                    if hum and hum.Health > 0 and hrp then
-                        local d = (hrp.Position - HRP.Position).Magnitude
-                        if d < bestD then bestD = d; target = v end
+                if v.Name==Mon then
+                    local hum=v:FindFirstChild("Humanoid")
+                    local hrp=v:FindFirstChild("HumanoidRootPart")
+                    if hum and hum.Health>0 and hrp then
+                        local d=(hrp.Position-HRP.Position).Magnitude
+                        if d<bestD then bestD=d; target=v end
                     end
                 end
             end
-
             if target then
                 Kill(target, true)
-                -- se chegou perto: ativa ataque
-                local mhrp = target:FindFirstChild("HumanoidRootPart")
-                if mhrp then
-                    local dist = (HRP.Position - mhrp.Position).Magnitude
-                    _G.Seriality = dist <= 70
-                end
+                local mhrp=target:FindFirstChild("HumanoidRootPart")
+                _G.Seriality = mhrp and (HRP.Position-mhrp.Position).Magnitude<=70 or false
             else
-                _G.Seriality = false
+                _G.Seriality=false
                 if CFrameMon then _tp(CFrameMon) end
             end
         end)
@@ -671,24 +698,22 @@ task.spawn(function()
 end)
 
 -- ════════════════════════════════════════
---  AUTO FARM NEAREST (multi-mob, sem quest)
+--  AUTO FARM NEAREST
 -- ════════════════════════════════════════
 task.spawn(function()
     while task.wait() do
-        if not _G.AutoFarmNear then _G.Seriality = false; continue end
+        if not _G.AutoFarmNear then _G.Seriality=false; continue end
         pcall(function()
             for _, child in ipairs(Enemies:GetChildren()) do
-                local hum = child:FindFirstChild("Humanoid")
-                local hrp = child:FindFirstChild("HumanoidRootPart")
-                if hum and hum.Health > 0 and hrp then
-                    -- mata cada mob até morrer
-                    while hum.Health > 0 and _G.AutoFarmNear do
+                local hum=child:FindFirstChild("Humanoid")
+                local hrp=child:FindFirstChild("HumanoidRootPart")
+                if hum and hum.Health>0 and hrp then
+                    while hum.Health>0 and _G.AutoFarmNear do
                         task.wait()
-                        Kill(child, _G.AutoFarmNear)
-                        local d = (HRP.Position - hrp.Position).Magnitude
-                        _G.Seriality = d <= 70
+                        Kill(child, true)
+                        _G.Seriality = (HRP.Position-hrp.Position).Magnitude<=70
                     end
-                    child:SetAttribute("Locked", nil) -- reset pra próxima vida
+                    child:SetAttribute("Locked",nil)
                 end
             end
         end)
@@ -696,41 +721,79 @@ task.spawn(function()
 end)
 
 -- ════════════════════════════════════════
---  AUTO FARM BOSS
+--  BOSS FARM — separado por sea
 -- ════════════════════════════════════════
-local BossPositions = {
-    ["The Gorilla King"]=CFrame.new(-1088.76,8.13,-488.56), ["Bobby"]=CFrame.new(-1087.38,46.95,4040.15),
-    ["Yeti"]=CFrame.new(1218.8,138,-1488.03), ["Vice Admiral"]=CFrame.new(-5006.55,88,4353.16),
-    ["Warden"]=CFrame.new(5278.05,2.15,944.1), ["Chief Warden"]=CFrame.new(5206.93,1,814.98),
-    ["Swan"]=CFrame.new(5325.1,7.04,719.57), ["Magma Admiral"]=CFrame.new(-5765.9,82.92,8718.3),
-    ["Fishman Lord"]=CFrame.new(61260.15,30.95,1193.43), ["Wysper"]=CFrame.new(-7866.13,5576.43,-546.75),
-    ["Thunder God"]=CFrame.new(-7994.98,5761.03,-2088.65), ["Cyborg"]=CFrame.new(6094.02,73.77,3825.73),
-    ["Darkbeard"]=CFrame.new(-5081.35,85.22,4257.36), ["Dragon"]=CFrame.new(-28000,20,11000),
-    ["Cake Queen"]=CFrame.new(-11000,850,490), ["Soul Reaper"]=CFrame.new(-9800,142,5700),
-    ["rip_indra"]=CFrame.new(-28220,350,-2000), ["Leviathan"]=CFrame.new(-22000,20,-10000),
+local BossData = {
+    [1] = {
+        {Name="The Gorilla King", CF=CFrame.new(-1088.76,8.13,-488.56)},
+        {Name="Bobby",            CF=CFrame.new(-1087.38,46.95,4040.15)},
+        {Name="The Saw",          CF=CFrame.new(5325.1,7.04,719.57)},
+        {Name="Yeti",             CF=CFrame.new(1218.8,138,-1488.03)},
+        {Name="Vice Admiral",     CF=CFrame.new(-5006.55,88,4353.16)},
+        {Name="Warden",           CF=CFrame.new(5278.05,2.15,944.1)},
+        {Name="Chief Warden",     CF=CFrame.new(5206.93,1,814.98)},
+        {Name="Swan",             CF=CFrame.new(638,72,918)},
+        {Name="Magma Admiral",    CF=CFrame.new(-5765.9,82.92,8718.3)},
+        {Name="Fishman Lord",     CF=CFrame.new(61260.15,30.95,1193.43)},
+        {Name="Wysper",           CF=CFrame.new(-7866.13,5576.43,-546.75)},
+        {Name="Thunder God",      CF=CFrame.new(-7994.98,5761.03,-2088.65)},
+        {Name="Cyborg",           CF=CFrame.new(6094.02,73.77,3825.73)},
+        {Name="Saber Expert",     CF=CFrame.new(-4867,390,-1942)},
+        {Name="Mob Leader",       CF=CFrame.new(1059,15,1550)},
+    },
+    [2] = {
+        {Name="Darkbeard",        CF=CFrame.new(-5081.35,85.22,4257.36)},
+        {Name="Don Swan",         CF=CFrame.new(638,72,918)},
+        {Name="Smoke Admiral",    CF=CFrame.new(-429,71,1836)},
+        {Name="Cursed Captain",   CF=CFrame.new(-3054,237,-10145)},
+        {Name="Ice Admiral",      CF=CFrame.new(609,401,-5372)},
+        {Name="Diamond",          CF=CFrame.new(-429,71,1836)},
+        {Name="Jeremy",           CF=CFrame.new(-429,71,1836)},
+        {Name="Fajita",           CF=CFrame.new(638,72,918)},
+        {Name="Order",            CF=CFrame.new(-3054,237,-10145)},
+        {Name="Greybeard",        CF=CFrame.new(-429,71,1836)},
+    },
+    [3] = {
+        {Name="Cake Queen",       CF=CFrame.new(-11000,850,490)},
+        {Name="Soul Reaper",      CF=CFrame.new(-9800,142,5700)},
+        {Name="rip_indra",        CF=CFrame.new(-28220,350,-2000)},
+        {Name="Dragon",           CF=CFrame.new(-28000,20,11000)},
+        {Name="Stone",            CF=CFrame.new(-16547,55,-172)},
+        {Name="Kilo Admiral",     CF=CFrame.new(-289,44,5580)},
+        {Name="Longma",           CF=CFrame.new(-16300,60,-350)},
+        {Name="Beautiful Pirate", CF=CFrame.new(5832,51,-1100)},
+        {Name="Captain Elephant", CF=CFrame.new(-9515,142,5536)},
+        {Name="Leviathan",        CF=CFrame.new(-22000,20,-10000)},
+        {Name="Hydra Leader",     CF=CFrame.new(5657,1013,-335)},
+    },
 }
+
+local seaBosses = BossData[CurrentSea] or {}
+local seaBossNames = {}
+local seaBossCFMap  = {}
+for _, b in ipairs(seaBosses) do
+    table.insert(seaBossNames, b.Name)
+    seaBossCFMap[b.Name] = b.CF
+end
 
 task.spawn(function()
     while task.wait(Sec) do
-        if not _G.FarmBoss then _G.Seriality = false; continue end
+        if not _G.FarmBoss then _G.Seriality=false; continue end
         pcall(function()
             if not HRP then return end
             for _, child in ipairs(Enemies:GetChildren()) do
-                if child.Name == _G.FindBoss then
-                    local hum = child:FindFirstChild("Humanoid")
-                    if hum and hum.Health > 0 then
+                if child.Name==_G.FindBoss then
+                    local hum=child:FindFirstChild("Humanoid")
+                    if hum and hum.Health>0 then
                         Kill(child, true)
-                        local hrp = child:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            _G.Seriality = (HRP.Position - hrp.Position).Magnitude <= 70
-                        end
+                        local hrp=child:FindFirstChild("HumanoidRootPart")
+                        _G.Seriality = hrp and (HRP.Position-hrp.Position).Magnitude<=70 or false
                         return
                     end
                 end
             end
-            -- boss não está: ir pro spawn
-            _G.Seriality = false
-            local pos = BossPositions[_G.FindBoss]
+            _G.Seriality=false
+            local pos=seaBossCFMap[_G.FindBoss]
             if pos then _tp(pos) end
         end)
     end
@@ -739,7 +802,6 @@ end)
 -- ════════════════════════════════════════
 --  AUTO BUSO HAKI
 -- ════════════════════════════════════════
-local lastBuso = 0
 task.spawn(function()
     while task.wait(5) do
         if _G.AutoBuso and AnyFarmActive() then
@@ -755,15 +817,12 @@ task.spawn(function()
     while task.wait(1.5) do
         if not _G.AutoStats then continue end
         pcall(function()
-            local d = LP:FindFirstChild("Data"); if not d then return end
-            local pts = d:FindFirstChild("Points") and d.Points.Value or 0
-            if pts <= 0 then return end
-            local chunk = math.min(pts, _G.StatChunk or 3)
-            for stat, en in pairs(_G.StatsMap) do
-                if en then
-                    Remotes.CommF_:InvokeServer("AddPoint", stat, chunk)
-                    task.wait(0.08)
-                end
+            local d=LP:FindFirstChild("Data"); if not d then return end
+            local pts=d:FindFirstChild("Points") and d.Points.Value or 0
+            if pts<=0 then return end
+            local chunk=math.min(pts,_G.StatChunk or 3)
+            for stat,en in pairs(_G.StatsMap) do
+                if en then Remotes.CommF_:InvokeServer("AddPoint",stat,chunk); task.wait(0.08) end
             end
         end)
     end
@@ -777,19 +836,19 @@ task.spawn(function()
         if not _G.AutoFarmChest then continue end
         pcall(function()
             if not HRP then return end
-            local nearest, nearD = nil, math.huge
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and string.find(obj.Name, "Chest")
+            local nearest,nearD=nil,math.huge
+            for _,obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and string.find(obj.Name,"Chest")
                    and obj:FindFirstChild("TouchInterest") then
-                    local d = (HRP.Position - obj.Position).Magnitude
-                    if d < nearD then nearest = obj; nearD = d end
+                    local d=(HRP.Position-obj.Position).Magnitude
+                    if d<nearD then nearest=obj; nearD=d end
                 end
             end
             if nearest then
-                _tp(nearest.CFrame * CFrame.new(0,2,0))
-                if nearD <= 12 then
-                    pcall(function() firetouchinterest(HRP, nearest, 0) end)
-                    pcall(function() firetouchinterest(HRP, nearest, 1) end)
+                _tp(nearest.CFrame*CFrame.new(0,2,0))
+                if nearD<=12 then
+                    pcall(function() firetouchinterest(HRP,nearest,0) end)
+                    pcall(function() firetouchinterest(HRP,nearest,1) end)
                     task.wait(0.2)
                 end
             end
@@ -805,14 +864,14 @@ task.spawn(function()
         if not _G.AutoSnipeFruit then continue end
         pcall(function()
             if not HRP then return end
-            for _, obj in ipairs(Workspace:GetChildren()) do
-                if string.find(obj.Name, "Fruit") then
-                    local handle = obj:FindFirstChild("Handle") or (obj:IsA("BasePart") and obj)
+            for _,obj in ipairs(workspace:GetChildren()) do
+                if string.find(obj.Name,"Fruit") then
+                    local handle=obj:FindFirstChild("Handle") or (obj:IsA("BasePart") and obj)
                     if handle then
                         _tp(handle.CFrame)
-                        if (HRP.Position - handle.Position).Magnitude <= 10 then
-                            pcall(function() firetouchinterest(HRP, handle, 0) end)
-                            pcall(function() firetouchinterest(HRP, handle, 1) end)
+                        if (HRP.Position-handle.Position).Magnitude<=10 then
+                            pcall(function() firetouchinterest(HRP,handle,0) end)
+                            pcall(function() firetouchinterest(HRP,handle,1) end)
                             task.wait(0.3)
                         end
                     end
@@ -823,38 +882,38 @@ task.spawn(function()
 end)
 
 -- ════════════════════════════════════════
---  ESP — Highlight + BillboardGui
+--  ESP
 -- ════════════════════════════════════════
-local espCache = {}
-local function CreateESP(obj, label, color)
+local espCache={}
+local function CreateESP(obj,label,color)
     if espCache[obj] then return end
     pcall(function()
-        local hl = Instance.new("Highlight")
+        local hl=Instance.new("Highlight")
         hl.FillColor=color; hl.OutlineColor=Color3.new(1,1,1)
         hl.FillTransparency=0.5; hl.OutlineTransparency=0.3
         hl.Adornee=obj; hl.Parent=LP.PlayerGui
-        local bb = Instance.new("BillboardGui")
+        local bb=Instance.new("BillboardGui")
         bb.AlwaysOnTop=true; bb.Size=UDim2.new(0,160,0,28)
-        bb.Adornee = obj:IsA("Model") and (obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart) or obj
-        bb.Parent = LP.PlayerGui
-        local lbl = Instance.new("TextLabel")
+        bb.Adornee=obj:IsA("Model") and (obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart) or obj
+        bb.Parent=LP.PlayerGui
+        local lbl=Instance.new("TextLabel")
         lbl.Size=UDim2.new(1,0,1,0); lbl.BackgroundTransparency=1
         lbl.Text=label; lbl.TextColor3=color
         lbl.Font=Enum.Font.GothamBold; lbl.TextSize=11
         lbl.TextStrokeTransparency=0.4; lbl.Parent=bb
-        espCache[obj] = {hl,bb}
+        espCache[obj]={hl,bb}
         obj.AncestryChanged:Connect(function()
-            if not obj:IsDescendantOf(Workspace) then
-                for _, v in pairs(espCache[obj] or {}) do pcall(function() v:Destroy() end) end
-                espCache[obj] = nil
+            if not obj:IsDescendantOf(workspace) then
+                for _,v in pairs(espCache[obj] or {}) do pcall(function() v:Destroy() end) end
+                espCache[obj]=nil
             end
         end)
     end)
 end
 local function ClearESP()
-    for obj, parts in pairs(espCache) do
-        for _, v in pairs(parts) do pcall(function() v:Destroy() end) end
-        espCache[obj] = nil
+    for obj,parts in pairs(espCache) do
+        for _,v in pairs(parts) do pcall(function() v:Destroy() end) end
+        espCache[obj]=nil
     end
 end
 task.spawn(function()
@@ -862,35 +921,35 @@ task.spawn(function()
         pcall(function()
             if not HRP then return end
             if _G.ESP_Players then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LP and p.Character then
-                        local hr = p.Character:FindFirstChild("HumanoidRootPart")
-                        local hm = p.Character:FindFirstChildOfClass("Humanoid")
-                        if hr and hm and hm.Health > 0 then
-                            CreateESP(p.Character, p.Name.." ["..math.floor((HRP.Position-hr.Position).Magnitude).."m]", Color3.fromRGB(0,230,255))
+                for _,p in ipairs(Players:GetPlayers()) do
+                    if p~=LP and p.Character then
+                        local hr=p.Character:FindFirstChild("HumanoidRootPart")
+                        local hm=p.Character:FindFirstChildOfClass("Humanoid")
+                        if hr and hm and hm.Health>0 then
+                            CreateESP(p.Character,p.Name.." ["..math.floor((HRP.Position-hr.Position).Magnitude).."m]",Color3.fromRGB(0,230,255))
                         end
                     end
                 end
             end
             if _G.ESP_Mobs then
-                for _, mob in ipairs(Enemies:GetChildren()) do
-                    local mh = mob:FindFirstChildOfClass("Humanoid")
-                    if mh and mh.Health > 0 then
-                        CreateESP(mob, mob.Name.." [HP:"..math.floor(mh.Health).."]", Color3.fromRGB(255,120,50))
+                for _,mob in ipairs(Enemies:GetChildren()) do
+                    local mh=mob:FindFirstChildOfClass("Humanoid")
+                    if mh and mh.Health>0 then
+                        CreateESP(mob,mob.Name.." [HP:"..math.floor(mh.Health).."]",Color3.fromRGB(255,120,50))
                     end
                 end
             end
             if _G.ESP_Chests then
-                for _, obj in ipairs(Workspace:GetDescendants()) do
+                for _,obj in ipairs(workspace:GetDescendants()) do
                     if obj:IsA("BasePart") and string.find(obj.Name,"Chest") and obj:FindFirstChild("TouchInterest") then
-                        CreateESP(obj, "Chest ["..math.floor((HRP.Position-obj.Position).Magnitude).."m]", Color3.fromRGB(255,215,0))
+                        CreateESP(obj,"Chest ["..math.floor((HRP.Position-obj.Position).Magnitude).."m]",Color3.fromRGB(255,215,0))
                     end
                 end
             end
             if _G.ESP_Fruits then
-                for _, obj in ipairs(Workspace:GetChildren()) do
+                for _,obj in ipairs(workspace:GetChildren()) do
                     if string.find(obj.Name,"Fruit") then
-                        CreateESP(obj, obj.Name, Color3.fromRGB(220,80,255))
+                        CreateESP(obj,obj.Name,Color3.fromRGB(220,80,255))
                     end
                 end
             end
@@ -902,24 +961,13 @@ task.spawn(function()
 end)
 
 -- ════════════════════════════════════════
---  WALKSPEED + JUMPPOWER + INFINITE JUMP
+--  INFINITE JUMP + ANTI-AFK
 -- ════════════════════════════════════════
-RunService.Stepped:Connect(function()
-    pcall(function()
-        local hum = Humanoid
-        if hum then
-            if hum.WalkSpeed ~= _G.WalkSpeed then hum.WalkSpeed = _G.WalkSpeed end
-            if hum.JumpPower  ~= _G.JumpPower  then hum.JumpPower  = _G.JumpPower  end
-        end
-    end)
-end)
 UserInputService.JumpRequest:Connect(function()
     if _G.InfiniteJump and Humanoid then
         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
-
--- anti-AFK
 LP.Idled:Connect(function()
     if _G.AntiAFK then
         VirtualUser:CaptureController()
@@ -933,7 +981,6 @@ end)
 local GGUI = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/MegaKnigth/GG-Blox/refs/heads/main/GG-Ui.luau"
 ))()
-
 if not GGUI or type(GGUI.MakeWindow) ~= "function" then
     warn("[BF] GG-UI falhou"); return
 end
@@ -944,36 +991,36 @@ local Win = GGUI:MakeWindow({
     ScriptFolder = "BFScript"
 })
 
--- ── TAB: FARM ──────────────────────────
+-- ── FARM ───────────────────────────────
 local tFarm = Win:MakeTab({Title="Farm"})
-
-tFarm:AddSection("Auto Farm")
+tFarm:AddSection("Auto Farm Level")
 tFarm:AddToggle({Title="Auto Farm Level", Default=false, Callback=function(v)
-    _G.Level=v; if not v then _G.Seriality=false; StopTween() end
+    _G.Level=v; if not v then _G.Seriality=false end
 end})
 tFarm:AddToggle({Title="Seriality (Ataque)", Default=false, Callback=function(v) _G.Seriality=v end})
 tFarm:AddToggle({Title="Bring Mobs", Default=true, Callback=function(v) _G.BringMob=v; _B=v end})
 tFarm:AddToggle({Title="Auto Buso Haki", Default=true, Callback=function(v) _G.AutoBuso=v end})
 
-tFarm:AddSection("Farm Livre")
+tFarm:AddSection("Farm Nearest (sem quest)")
 tFarm:AddToggle({Title="Auto Farm Nearest", Default=false, Callback=function(v)
     _G.AutoFarmNear=v; if not v then _G.Seriality=false end
 end})
 
-tFarm:AddSection("Boss Farm")
-local bossList = {}
-for k in pairs(BossPositions) do table.insert(bossList, k) end
-table.sort(bossList)
-tFarm:AddDropdown({Title="Boss", Options=bossList, Default=bossList[1], Callback=function(v) _G.FindBoss=v end})
+tFarm:AddSection("Boss — Sea "..CurrentSea)
+tFarm:AddDropdown({
+    Title="Boss", Options=seaBossNames,
+    Default=seaBossNames[1] or "The Gorilla King",
+    Callback=function(v) _G.FindBoss=v end
+})
 tFarm:AddToggle({Title="Auto Farm Boss", Default=false, Callback=function(v)
     _G.FarmBoss=v; if not v then _G.Seriality=false end
 end})
 
-tFarm:AddSection("Misc Farm")
+tFarm:AddSection("Itens")
 tFarm:AddToggle({Title="Auto Pegar Baús", Default=false, Callback=function(v) _G.AutoFarmChest=v end})
 tFarm:AddToggle({Title="Auto Snipe Fruta", Default=false, Callback=function(v) _G.AutoSnipeFruit=v end})
 
--- ── TAB: STATS ─────────────────────────
+-- ── STATS ──────────────────────────────
 local tStats = Win:MakeTab({Title="Stats"})
 tStats:AddSection("Auto Stats")
 tStats:AddToggle({Title="Auto Stats", Default=false, Callback=function(v) _G.AutoStats=v end})
@@ -984,145 +1031,150 @@ for _, stat in ipairs({"Melee","Defense","Sword","Gun","Demon Fruit"}) do
         Callback=function(v) _G.StatsMap[stat]=v end})
 end
 
--- ── TAB: ESP ───────────────────────────
+-- ── ESP ────────────────────────────────
 local tESP = Win:MakeTab({Title="ESP"})
 tESP:AddSection("Visibilidade")
-tESP:AddToggle({Title="ESP Players",  Default=false, Callback=function(v) _G.ESP_Players=v; if not v then ClearESP() end end})
-tESP:AddToggle({Title="ESP Mobs",     Default=false, Callback=function(v) _G.ESP_Mobs=v;    if not v then ClearESP() end end})
-tESP:AddToggle({Title="ESP Baús",     Default=false, Callback=function(v) _G.ESP_Chests=v;  if not v then ClearESP() end end})
-tESP:AddToggle({Title="ESP Frutas",   Default=false, Callback=function(v) _G.ESP_Fruits=v;  if not v then ClearESP() end end})
-tESP:AddButton({Title="Limpar ESP",   Callback=ClearESP})
+tESP:AddToggle({Title="ESP Players", Default=false, Callback=function(v) _G.ESP_Players=v; if not v then ClearESP() end end})
+tESP:AddToggle({Title="ESP Mobs",    Default=false, Callback=function(v) _G.ESP_Mobs=v;    if not v then ClearESP() end end})
+tESP:AddToggle({Title="ESP Baús",    Default=false, Callback=function(v) _G.ESP_Chests=v;  if not v then ClearESP() end end})
+tESP:AddToggle({Title="ESP Frutas",  Default=false, Callback=function(v) _G.ESP_Fruits=v;  if not v then ClearESP() end end})
+tESP:AddButton({Title="Limpar ESP",  Callback=ClearESP})
 
--- ── TAB: SHOP ──────────────────────────
+-- ── SHOP ───────────────────────────────
 local tShop = Win:MakeTab({Title="Shop"})
 tShop:AddSection("Espadas")
-tShop:AddDropdown({
-    Title="Espada",
-    Options={"Cutlass","Triple Katana","Bisento","Saber","Dark Blade","Yama",
-             "Pole (1st Form)","Pole (2nd Form)","Saddi","Wando","Hariharakesh",
-             "Canvander","Gravity Blade","Cursed Dual Katana","Tushita","Enma",
-             "True Triple Katana","Soul Cane","Shark Saw","Dragon Trident"},
-    Callback=function(v) _G.ShopSword=v end
-})
+tShop:AddDropdown({Title="Espada",
+    Options={"Cutlass","Triple Katana","Bisento","Saber","Dark Blade","Yama","Pole (1st Form)",
+             "Pole (2nd Form)","Saddi","Wando","Hariharakesh","Canvander","Gravity Blade",
+             "Cursed Dual Katana","Tushita","Enma","True Triple Katana","Soul Cane","Shark Saw","Dragon Trident"},
+    Callback=function(v) _G.ShopSword=v end})
 tShop:AddButton({Title="Comprar Espada", Callback=function()
-    pcall(function() Remotes.CommF_:InvokeServer("BuySword", _G.ShopSword or "Cutlass") end)
+    pcall(function() Remotes.CommF_:InvokeServer("BuySword",_G.ShopSword or "Cutlass") end)
 end})
-
 tShop:AddSection("Acessórios")
-tShop:AddDropdown({
-    Title="Acessório",
-    Options={"Lei","Tomoe Ring","Swan Glasses","Musketeer Hat","Valkyrie Helmet",
-             "Ghoul Mask","Dragon Scales","Angel Wings","Shark Tooth Necklace",
-             "Golden Crown","Trench Coat","Cyborg Glasses","Marine Coat","Swan Coat"},
-    Callback=function(v) _G.ShopAcc=v end
-})
+tShop:AddDropdown({Title="Acessório",
+    Options={"Lei","Tomoe Ring","Swan Glasses","Musketeer Hat","Valkyrie Helmet","Ghoul Mask",
+             "Dragon Scales","Angel Wings","Shark Tooth Necklace","Golden Crown","Trench Coat",
+             "Cyborg Glasses","Marine Coat","Swan Coat"},
+    Callback=function(v) _G.ShopAcc=v end})
 tShop:AddButton({Title="Comprar Acessório", Callback=function()
-    pcall(function() Remotes.CommF_:InvokeServer("BuyAccessory", _G.ShopAcc or "Lei") end)
+    pcall(function() Remotes.CommF_:InvokeServer("BuyAccessory",_G.ShopAcc or "Lei") end)
 end})
-
 tShop:AddSection("Codes")
-tShop:AddButton({Title="Resgatar Todos os Codes", Callback=function()
+tShop:AddButton({Title="Resgatar Codes", Callback=function()
     task.spawn(function()
-        for _, c in ipairs({
-            "SUB2GAMERROBOT_EXP1","KITT_RESET","Sub2Fer999","StrawHatMaine",
-            "Sub2OfficialNoobie","THEGREATACE","AXIORE","TantaiGaming",
-            "BLUXXY","fudd10","BIGNEWS","CHANDLER","FUDD10_V2","3BVISITS"
-        }) do
-            pcall(function() Remotes.CommF_:InvokeServer("Redeem", c) end)
-            task.wait(0.3)
+        for _,c in ipairs({"SUB2GAMERROBOT_EXP1","KITT_RESET","Sub2Fer999","StrawHatMaine",
+            "Sub2OfficialNoobie","THEGREATACE","AXIORE","TantaiGaming","BLUXXY","fudd10",
+            "BIGNEWS","CHANDLER","FUDD10_V2","3BVISITS"}) do
+            pcall(function() Remotes.CommF_:InvokeServer("Redeem",c) end); task.wait(0.3)
         end
-        Win:Notify({Title="Codes", Content="Resgatados!", Duration=3})
+        Win:Notify({Title="Codes",Content="Resgatados!",Duration=3})
     end)
 end})
 
--- ── TAB: TELEPORT ──────────────────────
-local tTP = Win:MakeTab({Title="Teleport"})
+-- ── TELEPORT ───────────────────────────
+-- Teleport usa notween (snap direto) para evitar o bug
+-- do _tp ser cancelado pelo shouldTween=false fora do farm
 local teleMap = {
-    [1]={ ["Starter Island"]=CFrame.new(1059,15,1550), ["Jungle"]=CFrame.new(-1448,68,11), ["Pirate Village"]=CFrame.new(-1141,4,3831), ["Desert"]=CFrame.new(924,6,4481), ["Snow Mountain"]=CFrame.new(1354,87,-1393), ["Marine Fortress"]=CFrame.new(-5035,28,4324), ["Sky Island"]=CFrame.new(-4842,717,2623), ["Prison"]=CFrame.new(5310,0,474), ["Colosseum"]=CFrame.new(-1577,7,2984), ["Magma Village"]=CFrame.new(-5316,12,8517), ["Underwater City"]=CFrame.new(61122,18,1569), ["Upper Skylands"]=CFrame.new(-4721,845,1953) },
-    [2]={ ["Kingdom of Rose"]=CFrame.new(-429,71,1836), ["Green Zone"]=CFrame.new(638,72,918), ["Graveyard"]=CFrame.new(-5497,48,-795), ["Snow Mountain S2"]=CFrame.new(609,401,-5372), ["Hot & Cold"]=CFrame.new(1008,125,32911), ["Cursed Ship"]=CFrame.new(-3054,237,-10145), ["Marine HQ"]=CFrame.new(-2440,72,-3217) },
-    [3]={ ["Pirate Port"]=CFrame.new(-289,44,5580), ["Amazon Lily"]=CFrame.new(5832,51,-1100), ["Great Tree"]=CFrame.new(2180,28,-6740), ["Haunted Castle"]=CFrame.new(-9515,142,5536), ["Candy Island"]=CFrame.new(-1149,13,-14445), ["Tiki Outpost"]=CFrame.new(-16547,55,-172), ["Dragon Dojo"]=CFrame.new(-16300,60,-350) },
+    [1]={
+        ["Starter Island"]=CFrame.new(1059,15,1550),
+        ["Jungle"]=CFrame.new(-1448,68,11),
+        ["Pirate Village"]=CFrame.new(-1141,4,3831),
+        ["Desert"]=CFrame.new(924,6,4481),
+        ["Snow Mountain"]=CFrame.new(1354,87,-1393),
+        ["Marine Fortress"]=CFrame.new(-5035,28,4324),
+        ["Sky Island"]=CFrame.new(-4842,717,2623),
+        ["Prison"]=CFrame.new(5310,0,474),
+        ["Colosseum"]=CFrame.new(-1577,7,2984),
+        ["Magma Village"]=CFrame.new(-5316,12,8517),
+        ["Underwater City"]=CFrame.new(61122,18,1569),
+        ["Upper Skylands"]=CFrame.new(-4721,845,1953),
+    },
+    [2]={
+        ["Kingdom of Rose"]=CFrame.new(-429,71,1836),
+        ["Green Zone"]=CFrame.new(638,72,918),
+        ["Graveyard"]=CFrame.new(-5497,48,-795),
+        ["Snow Mountain S2"]=CFrame.new(609,401,-5372),
+        ["Hot & Cold"]=CFrame.new(1008,125,32911),
+        ["Cursed Ship"]=CFrame.new(-3054,237,-10145),
+        ["Marine HQ"]=CFrame.new(-2440,72,-3217),
+    },
+    [3]={
+        ["Pirate Port"]=CFrame.new(-289,44,5580),
+        ["Amazon Lily"]=CFrame.new(5832,51,-1100),
+        ["Great Tree"]=CFrame.new(2180,28,-6740),
+        ["Haunted Castle"]=CFrame.new(-9515,142,5536),
+        ["Candy Island"]=CFrame.new(-1149,13,-14445),
+        ["Tiki Outpost"]=CFrame.new(-16547,55,-172),
+        ["Dragon Dojo"]=CFrame.new(-16300,60,-350),
+    },
 }
-local seaMap = teleMap[CurrentSea] or teleMap[1]
+local seaMap   = teleMap[CurrentSea] or teleMap[1]
 local destKeys = {}; for k in pairs(seaMap) do table.insert(destKeys,k) end; table.sort(destKeys)
-local selDest = destKeys[1]
+local selDest  = destKeys[1]
 
+local tTP = Win:MakeTab({Title="Teleport"})
 tTP:AddSection("Ilhas — Sea "..CurrentSea)
-tTP:AddDropdown({Title="Destino", Options=destKeys, Default=destKeys[1], Callback=function(v) selDest=v end})
+tTP:AddDropdown({Title="Destino", Options=destKeys, Default=destKeys[1],
+    Callback=function(v) selDest=v end})
 tTP:AddButton({Title="Teleportar", Callback=function()
-    local cf=seaMap[selDest]; if cf and HRP then _tp(cf) end
+    -- usa notween pra TP manual (não depende de shouldTween/farm ativo)
+    local cf=seaMap[selDest]
+    if cf and HRP then notween(cf) end
 end})
 tTP:AddButton({Title="Parar Movimento", Callback=function()
     StopTween()
     if HRP then HRP.AssemblyLinearVelocity=Vector3.zero end
 end})
-
 tTP:AddSection("Servidor")
 tTP:AddButton({Title="Server Hop", Callback=function()
     pcall(function()
-        local d = game:GetService("HttpService"):JSONDecode(
+        local d=game:GetService("HttpService"):JSONDecode(
             game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100")
         )
-        for _, s in ipairs(d.data or {}) do
-            if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, s.id, LP)
-                break
+        for _,s in ipairs(d.data or {}) do
+            if s.playing<s.maxPlayers and s.id~=game.JobId then
+                game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId,s.id,LP); break
             end
         end
     end)
 end})
 tTP:AddButton({Title="Rejoin", Callback=function()
-    game:GetService("TeleportService"):Teleport(game.PlaceId, LP)
+    game:GetService("TeleportService"):Teleport(game.PlaceId,LP)
 end})
 
--- ── TAB: PLAYER ────────────────────────
-local tPL = Win:MakeTab({Title="Player"})
-tPL:AddSection("Movimento")
-tPL:AddSlider({Title="WalkSpeed", Min=16, Max=500, Default=16, Increment=1,
-    Callback=function(v) _G.WalkSpeed=v end})
-tPL:AddSlider({Title="JumpPower", Min=50, Max=500, Default=50, Increment=1,
-    Callback=function(v) _G.JumpPower=v end})
-tPL:AddToggle({Title="Infinite Jump", Default=false, Callback=function(v) _G.InfiniteJump=v end})
-tPL:AddToggle({Title="Anti-AFK", Default=true, Callback=function(v) _G.AntiAFK=v end})
-
-tPL:AddSection("Visual")
-tPL:AddToggle({Title="FPS Boost", Default=false, Callback=function(v)
-    _G.FPSBoost=v
+-- ── CONFIG ─────────────────────────────
+local tCfg = Win:MakeTab({Title="Config"})
+tCfg:AddSection("Farm")
+tCfg:AddDropdown({Title="Arma", Options={"Melee","Sword","Blox Fruit","Gun"}, Default="Melee",
+    Callback=function(v) _G.SelectWeapon=v; EquipWeapon(v) end})
+tCfg:AddSlider({Title="Altura sobre mob", Min=5, Max=60, Default=25, Increment=1,
+    Callback=function(v) _G.FarmDistance=v end})
+tCfg:AddSlider({Title="Tween Speed (curta ≤15)", Min=50, Max=400, Default=180, Increment=10,
+    Callback=function(v) getgenv().TweenSpeedNear=v end})
+tCfg:AddSlider({Title="Tween Speed (longa)", Min=50, Max=600, Default=150, Increment=10,
+    Callback=function(v) getgenv().TweenSpeedFar=v end})
+tCfg:AddSection("Misc")
+tCfg:AddToggle({Title="Infinite Jump", Default=false, Callback=function(v) _G.InfiniteJump=v end})
+tCfg:AddToggle({Title="Anti-AFK", Default=true, Callback=function(v) _G.AntiAFK=v end})
+tCfg:AddToggle({Title="Kill Aura Players", Default=false, Callback=function(v) _G.KillAuraPlayers=v end})
+tCfg:AddToggle({Title="FPS Boost", Default=false, Callback=function(v)
     if v then
         game:GetService("Lighting").GlobalShadows=false
         game:GetService("Lighting").FogEnd=9e9
-        for _, p in ipairs(Workspace:GetDescendants()) do
+        for _,p in ipairs(workspace:GetDescendants()) do
             if p:IsA("BasePart") and not p.Parent:FindFirstChild("Humanoid") then
                 pcall(function() p.Material=Enum.Material.SmoothPlastic end)
             end
         end
     end
 end})
-
--- ── TAB: CONFIG ────────────────────────
-local tCfg = Win:MakeTab({Title="Config"})
-tCfg:AddSection("Arma & Distância")
-tCfg:AddDropdown({Title="Arma", Options={"Melee","Sword","Blox Fruit","Gun"}, Default="Melee",
-    Callback=function(v) _G.SelectWeapon=v; EquipWeapon(v) end})
-tCfg:AddSlider({Title="Altura sobre o mob", Min=5, Max=60, Default=25, Increment=1,
-    Callback=function(v) _G.FarmDistance=v end})
-tCfg:AddSlider({Title="Tween Speed (curta)", Min=50, Max=400, Default=180, Increment=10,
-    Callback=function(v) _G.TweenSpeedNear=v end})
-tCfg:AddSlider({Title="Tween Speed (longa)", Min=100, Max=800, Default=300, Increment=10,
-    Callback=function(v) _G.TweenSpeedFar=v end})
-tCfg:AddToggle({Title="Kill Aura Players", Default=false, Callback=function(v) _G.KillAuraPlayers=v end})
-
-tCfg:AddSection("Misc")
 tCfg:AddButton({Title="Desligar Tudo", Callback=function()
     _G.Level=false; _G.AutoFarmNear=false; _G.FarmBoss=false
     _G.AutoFarmChest=false; _G.AutoSnipeFruit=false; _G.AutoStats=false
     _G.Seriality=false; StopTween(); ClearESP()
-    Win:Notify({Title="Script", Content="Tudo desligado.", Duration=3})
+    Win:Notify({Title="Script",Content="Tudo desligado.",Duration=3})
 end})
 
-Win:Notify({
-    Title   = "BF Script",
-    Content = "Sea "..CurrentSea.." | Lv."..(LP.Data and LP.Data.Level.Value or "?").." | OK",
-    Duration= 5
-})
-
+Win:Notify({Title="BF Script",Content="Sea "..CurrentSea.." | OK",Duration=4})
 print("[BF Script] Sea "..CurrentSea.." | Lv."..(LP.Data and LP.Data.Level.Value or "?"))
